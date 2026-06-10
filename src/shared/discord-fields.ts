@@ -16,6 +16,7 @@ export const DISCORD_EVENTS = [
     "return.received",
     "claim.created",
     "exchange.created",
+    "system.alert",
 ];
 
 export const ORDER_FIELDS = [
