@@ -1,6 +1,6 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { DISCORD_NOTIFICATION_MODULE } from "../"
+import { DISCORD_NOTIFICATION_MODULE } from "../modules/discord-notification"
 
 type EventPayload = {
     id: string
