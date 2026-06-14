@@ -7,6 +7,16 @@ type EventPayload = {
     order_id?: string
 }
 
+function getWebhookLogId(webhookUrl: string) {
+    try {
+        const parsed = new URL(webhookUrl)
+        const parts = parsed.pathname.split("/").filter(Boolean)
+        return parts.at(-2) ?? "unknown"
+    } catch {
+        return "invalid-url"
+    }
+}
+
 function getNestedValue(obj: any, path: string): any {
     const parts = path.split(".");
     let current = obj;
@@ -281,7 +291,9 @@ export default async function discordNotificationHandler({
                             body: JSON.stringify(finalPayload),
                         })
                     } catch (e) {
-                        logger.error(`Error sending customer notification to ${mapping.webhook_url}: ${e}`)
+                        logger.error(
+                            `Error sending customer notification to Discord webhook ${getWebhookLogId(mapping.webhook_url)}: ${e}`,
+                        )
                     }
                 })
             )
