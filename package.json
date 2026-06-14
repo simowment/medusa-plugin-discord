@@ -2,13 +2,20 @@
   "name": "@sam-ael/medusa-plugin-discord",
   "version": "0.2.1",
   "description": "Send Discord webhook notifications on Medusa store events with dynamic settings.",
+  "main": ".medusa/server/src/index.js",
+  "types": ".medusa/server/src/index.d.ts",
   "author": "SAM-AEL (https://www.github.com/SAM-AEL)",
   "homepage": "https://github.com/SAM-AEL",
   "repository": "https://github.com/SAM-AEL/medusa-plugin-discord",
   "license": "MIT",
   "files": [
-    ".medusa/server"
+    ".medusa/server",
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     "./package.json": "./package.json",
     "./.medusa/server/src/modules/*": "./.medusa/server/src/modules/*/index.js",
@@ -18,6 +25,12 @@
       "import": "./.medusa/server/src/admin/index.mjs",
       "require": "./.medusa/server/src/admin/index.js",
       "default": "./.medusa/server/src/admin/index.js"
+    },
+    ".": {
+      "types": "./.medusa/server/src/index.d.ts",
+      "import": "./.medusa/server/src/index.js",
+      "require": "./.medusa/server/src/index.js",
+      "default": "./.medusa/server/src/index.js"
     }
   },
   "keywords": [
@@ -33,17 +46,15 @@
     "build": "medusa plugin:build",
     "dev": "medusa plugin:develop",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
-    "prepublishOnly": "medusa plugin:build"
+    "lint": "eslint \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\""
   },
   "devDependencies": {
     "@medusajs/admin-sdk": "^2.15.5",
-    "@medusajs/admin-shared": "^2.15.5",
     "@medusajs/cli": "^2.15.5",
     "@medusajs/framework": "^2.15.5",
     "@medusajs/icons": "^2.15.5",
     "@medusajs/medusa": "^2.15.5",
-    "@medusajs/test-utils": "^2.15.5",
     "@medusajs/ui": "^4.0.25",
     "@swc/core": "^1.7.28",
     "@types/node": "^20.0.0",
@@ -53,10 +64,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.6.2",
-    "vite": "^5.2.11",
-    "yalc": "^1.0.0-pre.53"
+    "vite": "^5.2.11"
   },
   "peerDependencies": {
     "@medusajs/framework": "^2.15.5",

@@ -19,7 +19,7 @@ A Discord webhook notification plugin for **Medusa v2**. Route store events to y
 ## Installation
 
 ```bash
-yarn add @sam-ael/medusa-plugin-discord
+pnpm add @sam-ael/medusa-plugin-discord
 ```
 
 ---
@@ -37,7 +37,7 @@ plugins: [
     options: {
       // Global fallback bot name. Can also be set via env var (see below).
       // Per-mapping bot names set in the Admin UI take priority over this.
-      defaultBotName: process.env.DISCORD_DEFAULT_BOT_NAME || "Discord Bot",
+      defaultBotName: process.env.DISCORD_DEFAULT_BOT_NAME,
     } satisfies DiscordNotificationOptions,
   },
 ],
@@ -64,14 +64,14 @@ Navigate to **Settings → Discord Notifications** in the Medusa Admin panel.
 
 ### Webhook Mapping Fields
 
-| Field | Required | Description |
-|---|---|---|
-| Event Trigger | ✅ | Which Medusa event fires this webhook |
-| Discord Webhook URL | ✅ | Full Discord webhook URL |
-| Channel Label | ❌ | Friendly label (e.g. `#orders`) — display only |
-| Bot Name | ❌ | Override the bot's display name for this channel. Falls back to `defaultBotName` plugin option → `"Discord Bot"` |
-| Custom Message Template | ❌ | Discord Markdown template. Leave blank for default rich embed. |
-| Enabled | ✅ | Toggle to activate/deactivate without deleting |
+| Field                   | Required | Description                                                                                                      |
+| ----------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| Event Trigger           | ✅       | Which Medusa event fires this webhook                                                                            |
+| Discord Webhook URL     | ✅       | Full Discord webhook URL                                                                                         |
+| Channel Label           | ❌       | Friendly label (e.g. `#orders`) — display only                                                                   |
+| Bot Name                | ❌       | Override the bot's display name for this channel. Falls back to `defaultBotName` plugin option → `"Discord Bot"` |
+| Custom Message Template | ❌       | Discord Markdown template. Leave blank for default rich embed.                                                   |
+| Enabled                 | ✅       | Toggle to activate/deactivate without deleting                                                                   |
 
 ---
 
@@ -93,49 +93,51 @@ If the original Discord message is manually deleted, the plugin automatically po
 
 ## Supported Events
 
-| Event | Description |
-|---|---|
-| `order.placed` | New order placed |
-| `order.fulfillment_created` | Fulfillment created for an order |
+| Event                          | Description                         |
+| ------------------------------ | ----------------------------------- |
+| `order.placed`                 | New order placed                    |
+| `order.fulfillment_created`    | Fulfillment created for an order    |
 | `fulfillment.shipment_created` | Shipment created with tracking info |
-| `order.completed` | Order marked as completed |
-| `order.canceled` | Order canceled |
-| `order.updated` | Order updated |
-| `customer.created` | New customer registered |
-| `customer.updated` | Customer profile updated |
+| `order.completed`              | Order marked as completed           |
+| `order.canceled`               | Order canceled                      |
+| `order.updated`                | Order updated                       |
+| `customer.created`             | New customer registered             |
+| `customer.updated`             | Customer profile updated            |
 
 ---
 
 ## Template Placeholders
 
 ### Order Events
-| Placeholder | Description |
-|---|---|
-| `{id}` | Order ID |
-| `{display_id}` | Human-readable order number |
-| `{status}` | Order status |
-| `{total}` | Order total (formatted as decimal) |
-| `{subtotal}` | Subtotal (formatted as decimal) |
-| `{currency_code}` | Currency code (e.g. `usd`) |
-| `{email}` | Customer email |
-| `{payment_status}` | Payment status |
-| `{fulfillment_status}` | Fulfillment status |
-| `{shipment_status}` | `Pending`, `Fulfillment Created`, or `Shipped` |
-| `{tracking_numbers}` | Comma-separated tracking numbers |
-| `{tracking_links}` | Tracking numbers as clickable Discord markdown links |
-| `{shipping_address.first_name}` | Shipping first name |
-| `{shipping_address.last_name}` | Shipping last name |
-| `{shipping_address.city}` | Shipping city |
-| `{customer.email}` | Customer account email |
+
+| Placeholder                     | Description                                          |
+| ------------------------------- | ---------------------------------------------------- |
+| `{id}`                          | Order ID                                             |
+| `{display_id}`                  | Human-readable order number                          |
+| `{status}`                      | Order status                                         |
+| `{total}`                       | Order total (formatted as decimal)                   |
+| `{subtotal}`                    | Subtotal (formatted as decimal)                      |
+| `{currency_code}`               | Currency code (e.g. `usd`)                           |
+| `{email}`                       | Customer email                                       |
+| `{payment_status}`              | Payment status                                       |
+| `{fulfillment_status}`          | Fulfillment status                                   |
+| `{shipment_status}`             | `Pending`, `Fulfillment Created`, or `Shipped`       |
+| `{tracking_numbers}`            | Comma-separated tracking numbers                     |
+| `{tracking_links}`              | Tracking numbers as clickable Discord markdown links |
+| `{shipping_address.first_name}` | Shipping first name                                  |
+| `{shipping_address.last_name}`  | Shipping last name                                   |
+| `{shipping_address.city}`       | Shipping city                                        |
+| `{customer.email}`              | Customer account email                               |
 
 ### Customer Events
-| Placeholder | Description |
-|---|---|
-| `{id}` | Customer ID |
-| `{email}` | Email address |
-| `{first_name}` | First name |
-| `{last_name}` | Last name |
-| `{phone}` | Phone number |
+
+| Placeholder    | Description   |
+| -------------- | ------------- |
+| `{id}`         | Customer ID   |
+| `{email}`      | Email address |
+| `{first_name}` | First name    |
+| `{last_name}`  | Last name     |
+| `{phone}`      | Phone number  |
 
 ---
 
@@ -156,13 +158,13 @@ type DiscordNotificationOptions = {
 
 ## Admin API Reference
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/admin/discord/mappings` | List all webhook mappings |
-| `POST` | `/admin/discord/mappings` | Create a new webhook mapping |
-| `POST` | `/admin/discord/mappings/:id` | Update a webhook mapping |
-| `DELETE` | `/admin/discord/mappings/:id` | Delete a webhook mapping |
-| `POST` | `/admin/discord/test` | Send a test notification using mock data |
+| Method   | Endpoint                      | Description                              |
+| -------- | ----------------------------- | ---------------------------------------- |
+| `GET`    | `/admin/discord/mappings`     | List all webhook mappings                |
+| `POST`   | `/admin/discord/mappings`     | Create a new webhook mapping             |
+| `POST`   | `/admin/discord/mappings/:id` | Update a webhook mapping                 |
+| `DELETE` | `/admin/discord/mappings/:id` | Delete a webhook mapping                 |
+| `POST`   | `/admin/discord/test`         | Send a test notification using mock data |
 
 ### Mapping Payload
 
@@ -182,8 +184,8 @@ type DiscordNotificationOptions = {
 ## Development
 
 ```bash
-yarn typecheck
-yarn build
+pnpm typecheck
+pnpm build
 ```
 
 ---
