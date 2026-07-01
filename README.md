@@ -11,7 +11,7 @@ A Discord webhook notification plugin for **Medusa v2**. Route store events to y
 - **Configurable Bot Name** — Set a global fallback bot name via plugin config or env var, and override per-channel from the Admin UI.
 - **Interactive Admin UI** — Manage all webhook mappings and templates directly from the Medusa Admin panel settings.
 - **Placeholder Sidebar** — Click a field (e.g. `{total}`, `{tracking_links}`) to insert it at your cursor in the template editor.
-- **Price Formatting** — Automatically converts price fields from Medusa's integer cents to human-readable decimals.
+- **Price Formatting** — Formats Medusa price fields as stored decimal values.
 - **Multiple Event Triggers** — Supports order, fulfillment, shipment, and customer events.
 
 ---
@@ -31,6 +31,10 @@ pnpm add @sam-ael/medusa-plugin-discord
 ```ts
 import { DiscordNotificationOptions } from "@sam-ael/medusa-plugin-discord/modules/discord-notification"
 
+const resolveBackendDependency = (specifier: string) => require.resolve(specifier, {
+  paths: [__dirname],
+})
+
 plugins: [
   {
     resolve: "@sam-ael/medusa-plugin-discord",
@@ -39,6 +43,11 @@ plugins: [
       // Per-mapping bot names set in the Admin UI take priority over this.
       defaultBotName: process.env.DISCORD_DEFAULT_BOT_NAME,
     } satisfies DiscordNotificationOptions,
+  },
+],
+modules: [
+  {
+    resolve: resolveBackendDependency("@sam-ael/medusa-plugin-discord/modules/discord-notification"),
   },
 ],
 ```
@@ -164,7 +173,7 @@ type DiscordNotificationOptions = {
 | `POST`   | `/admin/discord/mappings`     | Create a new webhook mapping             |
 | `POST`   | `/admin/discord/mappings/:id` | Update a webhook mapping                 |
 | `DELETE` | `/admin/discord/mappings/:id` | Delete a webhook mapping                 |
-| `POST`   | `/admin/discord/test`         | Send a test notification using mock data |
+| `POST`   | `/admin/discord/verify`       | Send a test notification using mock data |
 
 ### Mapping Payload
 

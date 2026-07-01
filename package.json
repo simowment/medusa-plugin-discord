@@ -3,6 +3,7 @@
   "version": "0.2.1",
   "description": "Send Discord webhook notifications on Medusa store events with dynamic settings.",
   "main": ".medusa/server/src/index.js",
+  "types": ".medusa/server/src/index.d.ts",
   "author": "SAM-AEL (https://www.github.com/SAM-AEL)",
   "homepage": "https://github.com/SAM-AEL",
   "repository": "https://github.com/SAM-AEL/medusa-plugin-discord",
@@ -18,7 +19,12 @@
   "exports": {
     "./package.json": "./package.json",
     "./.medusa/server/src/modules/*": "./.medusa/server/src/modules/*/index.js",
-    "./modules/*": "./.medusa/server/src/modules/*/index.js",
+    "./modules/*": {
+      "types": "./.medusa/server/src/modules/*/index.d.ts",
+      "import": "./.medusa/server/src/modules/*/index.js",
+      "require": "./.medusa/server/src/modules/*/index.js",
+      "default": "./.medusa/server/src/modules/*/index.js"
+    },
     "./*": "./.medusa/server/src/*.js",
     "./admin": {
       "import": "./.medusa/server/src/admin/index.mjs",
@@ -26,6 +32,7 @@
       "default": "./.medusa/server/src/admin/index.js"
     },
     ".": {
+      "types": "./.medusa/server/src/index.d.ts",
       "import": "./.medusa/server/src/index.js",
       "require": "./.medusa/server/src/index.js",
       "default": "./.medusa/server/src/index.js"
@@ -41,7 +48,7 @@
     "discord"
   ],
   "scripts": {
-    "build": "medusa plugin:build",
+    "build": "medusa plugin:build && tsc",
     "dev": "medusa plugin:develop",
     "prepack": "corepack pnpm build",
     "prepublishOnly": "corepack pnpm build",
@@ -55,6 +62,7 @@
     "@medusajs/framework": "^2.15.5",
     "@medusajs/icons": "^2.15.5",
     "@medusajs/medusa": "^2.15.5",
+    "@medusajs/types": "^2.15.5",
     "@medusajs/ui": "^4.0.25",
     "@swc/core": "^1.7.28",
     "@types/node": "^20.0.0",
@@ -68,8 +76,14 @@
     "vite": "^5.2.11"
   },
   "peerDependencies": {
+    "@medusajs/admin-sdk": "^2.15.5",
     "@medusajs/framework": "^2.15.5",
-    "@medusajs/medusa": "^2.15.5"
+    "@medusajs/icons": "^2.15.5",
+    "@medusajs/medusa": "^2.15.5",
+    "@medusajs/types": "^2.15.5",
+    "@medusajs/ui": "^4.0.25",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
   },
   "engines": {
     "node": ">=20"
