@@ -1,12 +1,28 @@
-import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
+import type { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { DISCORD_NOTIFICATION_MODULE } from '../../../../modules/discord-notification'
-import { ok, fail, parsePagination } from '../../../../shared/http'
+import { ok, parsePagination } from '../../../../shared/http'
+import type { CreateDiscordMappingBody } from '../validators'
 
-export async function GET(req: MedusaRequest, res: MedusaResponse) {
-  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE)
-  const { limit, offset } = parsePagination(req.query as Record<string, unknown>)
+type DiscordMappingService = {
+  listAndCountDiscordWebhookMappings: (
+    filters: Record<string, unknown>,
+    config: { take: number; skip: number; order: { created_at: 'DESC' } },
+  ) => Promise<[unknown[], number]>
+  createDiscordWebhookMappings: (data: {
+    event_name: string
+    webhook_url: string
+    channel_name: string | null
+    is_active: boolean
+    message_template: string | null
+    bot_name: string | null
+  }) => Promise<unknown>
+}
 
-  const [mappings, count] = await (discordSvc as any).listAndCountDiscordWebhookMappings(
+export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
+  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE) as DiscordMappingService
+  const { limit, offset } = parsePagination(req.validatedQuery as Record<string, unknown>)
+
+  const [mappings, count] = await discordSvc.listAndCountDiscordWebhookMappings(
     {},
     {
       take: limit,
@@ -18,24 +34,15 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   return ok(res, { mappings, count })
 }
 
-export async function POST(req: MedusaRequest, res: MedusaResponse) {
-  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE)
-  const body = req.body as Record<string, any>
+export async function POST(
+  req: AuthenticatedMedusaRequest<CreateDiscordMappingBody>,
+  res: MedusaResponse,
+) {
+  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE) as DiscordMappingService
+  const { event_name, webhook_url, channel_name, is_active, message_template, bot_name } =
+    req.validatedBody
 
-  const { event_name, webhook_url, channel_name, is_active, message_template, bot_name } = body
-
-  if (!event_name || !webhook_url) {
-    return fail(res, 400, 'INVALID_PAYLOAD', 'event_name and webhook_url are required')
-  }
-
-  if (
-    !webhook_url.startsWith('https://discord.com/api/webhooks/') &&
-    !webhook_url.startsWith('https://discordapp.com/api/webhooks/')
-  ) {
-    return fail(res, 400, 'INVALID_WEBHOOK_URL', 'webhook_url must be a valid Discord Webhook URL')
-  }
-
-  const mapping = await (discordSvc as any).createDiscordWebhookMappings({
+  const mapping = await discordSvc.createDiscordWebhookMappings({
     event_name,
     webhook_url,
     channel_name: channel_name || null,

@@ -1,20 +1,34 @@
-import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
+import type { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { DISCORD_NOTIFICATION_MODULE } from '../../../../modules/discord-notification'
+import type { UpdateDiscordSettingsBody } from '../validators'
 
-export async function GET(req: MedusaRequest, res: MedusaResponse) {
-  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE) as any
+type DiscordSettings = {
+  avatar_url?: string
+  footer_text?: string
+}
+
+type DiscordSettingsService = {
+  getSettings: () => Promise<DiscordSettings>
+  upsertSettings: (data: { avatar_url: string | null; footer_text: string | null }) => Promise<void>
+}
+
+export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
+  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE) as DiscordSettingsService
 
   try {
     const settings = await discordSvc.getSettings()
     res.json({ settings })
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Internal server error' })
   }
 }
 
-export async function POST(req: MedusaRequest, res: MedusaResponse) {
-  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE) as any
-  const body = req.body as { avatar_url?: string; footer_text?: string }
+export async function POST(
+  req: AuthenticatedMedusaRequest<UpdateDiscordSettingsBody>,
+  res: MedusaResponse,
+) {
+  const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE) as DiscordSettingsService
+  const body = req.validatedBody
 
   try {
     await discordSvc.upsertSettings({
@@ -23,7 +37,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     })
     const settings = await discordSvc.getSettings()
     res.json({ settings })
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Internal server error' })
   }
 }
