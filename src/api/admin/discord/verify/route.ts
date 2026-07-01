@@ -12,21 +12,56 @@ function getNestedValue(obj: any, path: string): any {
   return current
 }
 
-function formatValue(value: any, path: string): string {
+function extractNumeric(value: any): number {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') return Number(value)
+  if (typeof value === 'object' && value !== null) {
+    if ('numeric_' in value) return Number(value.numeric_)
+    if ('raw_' in value && value.raw_ !== null && 'value' in value.raw_) {
+      return Number(value.raw_.value)
+    }
+    if ('value' in value) return Number(value.value)
+    if (typeof value.valueOf === 'function') {
+      const val = value.valueOf()
+      if (typeof val === 'number' || typeof val === 'string') return Number(val)
+    }
+  }
+  return Number(value)
+}
+
+function formatPrice(value: any, rootData?: any): string {
+  const num = extractNumeric(value)
+  if (!isNaN(num) && rootData?.currency_code) {
+    const formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: rootData.currency_code.toUpperCase(),
+    })
+    return formatter.format(num)
+  }
+  return isNaN(num) ? '0' : num.toString()
+}
+
+function isPricePath(path: string): boolean {
+  return (
+    path === 'total' ||
+    path === 'subtotal' ||
+    path.endsWith('.total') ||
+    path.endsWith('.subtotal') ||
+    path.endsWith('.price') ||
+    path.endsWith('.unit_price')
+  )
+}
+
+function formatValue(value: any, path: string, rootData?: any): string {
   if (value === undefined || value === null) {
     return ''
   }
+
+  if (isPricePath(path)) {
+    return formatPrice(value, rootData)
+  }
+
   if (typeof value === 'number') {
-    if (
-      path === 'total' ||
-      path === 'subtotal' ||
-      path.endsWith('.total') ||
-      path.endsWith('.subtotal') ||
-      path.endsWith('.price') ||
-      path.endsWith('.unit_price')
-    ) {
-      return (value / 100).toFixed(2)
-    }
     return value.toString()
   }
   if (Array.isArray(value)) {
@@ -37,7 +72,7 @@ function formatValue(value: any, path: string): string {
             const title = item.title || item.name || 'Item'
             const qty = item.quantity !== undefined ? ` (Qty: ${item.quantity})` : ''
             const price =
-              item.unit_price !== undefined ? ` - $${(item.unit_price / 100).toFixed(2)}` : ''
+              item.unit_price !== undefined ? ` - ${formatPrice(item.unit_price, rootData)}` : ''
             return `- ${title}${qty}${price}`
           }
           return `- ${String(item)}`
@@ -56,7 +91,7 @@ function compileTemplate(template: string, data: any): string {
   const isJson = template.trim().startsWith('{') && template.trim().endsWith('}')
   return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (match, path) => {
     const value = getNestedValue(data, path)
-    let formatted = formatValue(value, path)
+    let formatted = formatValue(value, path, data)
     if (isJson && typeof formatted === 'string') {
       formatted = formatted
         .replace(/\\/g, '\\\\')
@@ -75,8 +110,8 @@ const mockOrder = {
   status: 'pending',
   email: 'customer@example.com',
   currency_code: 'usd',
-  total: 12550,
-  subtotal: 10000,
+  total: 125.5,
+  subtotal: 125.5,
   shipping_address: {
     first_name: 'Jane',
     last_name: 'Doe',
@@ -95,8 +130,8 @@ const mockOrder = {
     phone: '+15551234567',
   },
   items: [
-    { title: 'Premium Graphic Tee', quantity: 2, unit_price: 5000 },
-    { title: 'Sticker Pack', quantity: 1, unit_price: 2550 },
+    { title: 'Premium Graphic Tee', quantity: 2, unit_price: 50 },
+    { title: 'Sticker Pack', quantity: 1, unit_price: 25.5 },
   ],
 }
 
