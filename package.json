@@ -3,7 +3,6 @@
   "version": "0.2.1",
   "description": "Send Discord webhook notifications on Medusa store events with dynamic settings.",
   "main": ".medusa/server/src/index.js",
-  "types": ".medusa/server/src/index.d.ts",
   "author": "SAM-AEL (https://www.github.com/SAM-AEL)",
   "homepage": "https://github.com/SAM-AEL",
   "repository": "https://github.com/SAM-AEL/medusa-plugin-discord",
@@ -27,7 +26,6 @@
       "default": "./.medusa/server/src/admin/index.js"
     },
     ".": {
-      "types": "./.medusa/server/src/index.d.ts",
       "import": "./.medusa/server/src/index.js",
       "require": "./.medusa/server/src/index.js",
       "default": "./.medusa/server/src/index.js"
@@ -45,6 +43,8 @@
   "scripts": {
     "build": "medusa plugin:build",
     "dev": "medusa plugin:develop",
+    "prepack": "corepack pnpm build",
+    "prepublishOnly": "corepack pnpm build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\""
