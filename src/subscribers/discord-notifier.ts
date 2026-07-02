@@ -138,6 +138,18 @@ async function resolveOrderId(
     return data.order_id
   }
 
+  const resolveOrderIdFromPaymentCollection = async (
+    paymentCollectionId: string,
+  ): Promise<string | null> => {
+    const { data: paymentCollections } = await query.graph({
+      entity: 'payment_collection',
+      fields: ['id', 'order.id'],
+      filters: { id: paymentCollectionId },
+    })
+
+    return paymentCollections?.[0]?.order?.id ?? null
+  }
+
   if (data.id) {
     // 1. Try to fetch as direct Order ID
     try {
@@ -155,17 +167,13 @@ async function resolveOrderId(
 
     // 2. Try to fetch as Fulfillment ID linked to an order
     try {
-      const { data: linkedOrders } = await query.graph({
-        entity: 'order',
-        fields: ['id'],
-        filters: {
-          fulfillments: {
-            id: data.id,
-          },
-        },
+      const { data: fulfillments } = await query.graph({
+        entity: 'fulfillment',
+        fields: ['id', 'order.id'],
+        filters: { id: data.id },
       })
-      if (linkedOrders && linkedOrders.length > 0) {
-        return linkedOrders[0].id
+      if (fulfillments?.[0]?.order?.id) {
+        return fulfillments[0].order.id
       }
     } catch (e) {
       // Not a fulfillment ID linked to order
@@ -179,17 +187,9 @@ async function resolveOrderId(
         filters: { id: data.id },
       })
       if (payments && payments.length > 0 && payments[0].payment_collection_id) {
-        const { data: linkedOrders } = await query.graph({
-          entity: 'order',
-          fields: ['id'],
-          filters: {
-            payment_collections: {
-              id: payments[0].payment_collection_id,
-            },
-          },
-        })
-        if (linkedOrders && linkedOrders.length > 0) {
-          return linkedOrders[0].id
+        const orderId = await resolveOrderIdFromPaymentCollection(payments[0].payment_collection_id)
+        if (orderId) {
+          return orderId
         }
       }
     } catch (e) {
@@ -198,17 +198,9 @@ async function resolveOrderId(
 
     // 4. Try to fetch as Payment Collection ID linked to an order
     try {
-      const { data: linkedOrders } = await query.graph({
-        entity: 'order',
-        fields: ['id'],
-        filters: {
-          payment_collections: {
-            id: data.id,
-          },
-        },
-      })
-      if (linkedOrders && linkedOrders.length > 0) {
-        return linkedOrders[0].id
+      const orderId = await resolveOrderIdFromPaymentCollection(data.id)
+      if (orderId) {
+        return orderId
       }
     } catch (e) {
       logger.warn(`Could not resolve order from ID ${data.id}: ${e}`)
