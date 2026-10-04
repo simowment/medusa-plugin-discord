@@ -5,8 +5,11 @@
   "main": ".medusa/server/src/index.js",
   "types": ".medusa/server/src/index.d.ts",
   "author": "SAM-AEL (https://www.github.com/SAM-AEL)",
-  "homepage": "https://github.com/SAM-AEL",
-  "repository": "https://github.com/SAM-AEL/medusa-plugin-discord",
+  "homepage": "https://github.com/simowment/medusa-plugin-discord#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simowment/medusa-plugin-discord.git"
+  },
   "license": "MIT",
   "files": [
     ".medusa/server",
@@ -92,5 +95,8 @@
   "engines": {
     "node": ">=20.19.0"
   },
-  "packageManager": "pnpm@10.29.3"
+  "packageManager": "pnpm@10.29.3",
+  "bugs": {
+    "url": "https://github.com/simowment/medusa-plugin-discord/issues"
+  }
 }
