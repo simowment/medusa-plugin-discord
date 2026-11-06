@@ -5,6 +5,9 @@
   "main": ".medusa/server/src/index.js",
   "types": ".medusa/server/src/index.d.ts",
   "author": "SAM-AEL (https://www.github.com/SAM-AEL)",
+  "contributors": [
+    "simowment (https://github.com/simowment)"
+  ],
   "homepage": "https://github.com/simowment/medusa-plugin-discord#readme",
   "repository": {
     "type": "git",
@@ -13,8 +16,8 @@
   "license": "MIT",
   "files": [
     ".medusa/server",
-    "README.md",
-    "LICENSE"
+    "LICENSE",
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"
@@ -27,6 +30,12 @@
       "import": "./.medusa/server/src/modules/*/index.js",
       "require": "./.medusa/server/src/modules/*/index.js",
       "default": "./.medusa/server/src/modules/*/index.js"
+    },
+    "./workflows/*": {
+      "types": "./.medusa/server/src/workflows/*.d.ts",
+      "import": "./.medusa/server/src/workflows/*.js",
+      "require": "./.medusa/server/src/workflows/*.js",
+      "default": "./.medusa/server/src/workflows/*.js"
     },
     "./*": "./.medusa/server/src/*.js",
     "./admin": {

@@ -1,6 +1,6 @@
 import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework'
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils'
-import { DISCORD_NOTIFICATION_MODULE } from '../modules/discord-notification'
+import { DEFAULT_LOCALE, DISCORD_NOTIFICATION_MODULE } from '../modules/discord-notification'
 
 type EventPayload = {
   id: string
@@ -43,7 +43,7 @@ function extractNumeric(value: any): number {
   return Number(value)
 }
 
-function formatValue(value: any, path: string, rootData?: any): string {
+function formatValue(value: any, path: string, rootData?: any, locale = DEFAULT_LOCALE): string {
   if (value === undefined || value === null) {
     return ''
   }
@@ -59,7 +59,7 @@ function formatValue(value: any, path: string, rootData?: any): string {
   if (isPrice) {
     const num = extractNumeric(value)
     if (!isNaN(num) && rootData && rootData.currency_code) {
-      const formatter = new Intl.NumberFormat('en-US', {
+      const formatter = new Intl.NumberFormat(locale, {
         style: 'currency',
         currency: rootData.currency_code.toUpperCase(),
       })
@@ -84,7 +84,7 @@ function formatValue(value: any, path: string, rootData?: any): string {
               const pNum = extractNumeric(item.unit_price)
               if (!isNaN(pNum)) {
                 if (rootData && rootData.currency_code) {
-                  const formatter = new Intl.NumberFormat('en-US', {
+                  const formatter = new Intl.NumberFormat(locale, {
                     style: 'currency',
                     currency: rootData.currency_code.toUpperCase(),
                   })
@@ -108,11 +108,11 @@ function formatValue(value: any, path: string, rootData?: any): string {
   return String(value)
 }
 
-function compileTemplate(template: string, data: any): string {
+function compileTemplate(template: string, data: any, locale = DEFAULT_LOCALE): string {
   const isJson = template.trim().startsWith('{') && template.trim().endsWith('}')
   return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (match, path) => {
     const value = getNestedValue(data, path)
-    let formatted = formatValue(value, path, data)
+    let formatted = formatValue(value, path, data, locale)
     if (isJson && typeof formatted === 'string') {
       formatted = formatted
         .replace(/\\/g, '\\\\')
@@ -220,6 +220,7 @@ export default async function discordNotificationHandler({
 
   try {
     const globalSettings = await discordSvc.getSettings()
+    const locale: string = discordSvc.getLocale()
 
     // Handle Customer Events separately (not order-centric, always new messages)
     if (name.startsWith('customer.')) {
@@ -283,7 +284,7 @@ export default async function discordNotificationHandler({
           try {
             let finalPayload: any
             if (mapping.message_template) {
-              const content = compileTemplate(mapping.message_template, customer)
+              const content = compileTemplate(mapping.message_template, customer, locale)
               try {
                 const parsedJson = JSON.parse(content)
                 finalPayload = {
@@ -441,7 +442,7 @@ export default async function discordNotificationHandler({
     const currency = order.currency_code.toUpperCase()
 
     // Use proper locale formatting based on the currency code
-    const formatter = new Intl.NumberFormat('en-US', {
+    const formatter = new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: currency,
     })
@@ -523,7 +524,7 @@ export default async function discordNotificationHandler({
     const buildPayload = (template: string | null, botName?: string) => {
       const resolvedBotName = botName || discordSvc.getDefaultBotName()
       if (template) {
-        const content = compileTemplate(template, dataForTemplate)
+        const content = compileTemplate(template, dataForTemplate, locale)
         // Try parsing the template as JSON to allow users to build custom rich embeds
         try {
           const parsedJson = JSON.parse(content)

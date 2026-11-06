@@ -36,6 +36,11 @@ export default defineMiddlewares({
       middlewares: [adminAuth],
     },
     {
+      matcher: '/admin/discord/verify',
+      method: 'POST',
+      middlewares: [adminAuth],
+    },
+    {
       matcher: '/admin/discord/settings',
       method: 'GET',
       middlewares: [adminAuth],

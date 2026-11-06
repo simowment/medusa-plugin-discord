@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
-import { DISCORD_NOTIFICATION_MODULE } from '../../../../modules/discord-notification'
+import { DEFAULT_LOCALE, DISCORD_NOTIFICATION_MODULE } from '../../../../modules/discord-notification'
 import { ok, fail } from '../../../../shared/http'
 
 function getNestedValue(obj: any, path: string): any {
@@ -29,10 +29,10 @@ function extractNumeric(value: any): number {
   return Number(value)
 }
 
-function formatPrice(value: any, rootData?: any): string {
+function formatPrice(value: any, rootData?: any, locale = DEFAULT_LOCALE): string {
   const num = extractNumeric(value)
   if (!isNaN(num) && rootData?.currency_code) {
-    const formatter = new Intl.NumberFormat('en-US', {
+    const formatter = new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: rootData.currency_code.toUpperCase(),
     })
@@ -52,13 +52,13 @@ function isPricePath(path: string): boolean {
   )
 }
 
-function formatValue(value: any, path: string, rootData?: any): string {
+function formatValue(value: any, path: string, rootData?: any, locale = DEFAULT_LOCALE): string {
   if (value === undefined || value === null) {
     return ''
   }
 
   if (isPricePath(path)) {
-    return formatPrice(value, rootData)
+    return formatPrice(value, rootData, locale)
   }
 
   if (typeof value === 'number') {
@@ -72,7 +72,7 @@ function formatValue(value: any, path: string, rootData?: any): string {
             const title = item.title || item.name || 'Item'
             const qty = item.quantity !== undefined ? ` (Qty: ${item.quantity})` : ''
             const price =
-              item.unit_price !== undefined ? ` - ${formatPrice(item.unit_price, rootData)}` : ''
+              item.unit_price !== undefined ? ` - ${formatPrice(item.unit_price, rootData, locale)}` : ''
             return `- ${title}${qty}${price}`
           }
           return `- ${String(item)}`
@@ -87,11 +87,11 @@ function formatValue(value: any, path: string, rootData?: any): string {
   return String(value)
 }
 
-function compileTemplate(template: string, data: any): string {
+function compileTemplate(template: string, data: any, locale = DEFAULT_LOCALE): string {
   const isJson = template.trim().startsWith('{') && template.trim().endsWith('}')
   return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (match, path) => {
     const value = getNestedValue(data, path)
-    let formatted = formatValue(value, path, data)
+    let formatted = formatValue(value, path, data, locale)
     if (isJson && typeof formatted === 'string') {
       formatted = formatted
         .replace(/\\/g, '\\\\')
@@ -164,7 +164,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
     if (mapping.message_template) {
       const mockData = mapping.event_name === 'customer.created' ? mockCustomer : mockOrder
-      const content = compileTemplate(mapping.message_template, mockData)
+      const content = compileTemplate(mapping.message_template, mockData, discordSvc.getLocale())
       try {
         const parsedJson = JSON.parse(content)
         payload = {

@@ -3,27 +3,33 @@ import DiscordWebhookMapping from './models/discord_webhook_mapping'
 import DiscordOrderMessage from './models/discord_order_message'
 import { DiscordPluginSetting } from './models/discord_plugin_setting'
 import type { AlertPayload } from '../../shared/types'
+import {
+  resolveDiscordNotificationOptions,
+  type DiscordNotificationOptions,
+  type ResolvedDiscordNotificationOptions,
+} from './config'
 
-export type DiscordNotificationOptions = {
-  /** Global fallback bot name shown in Discord when no per-mapping bot_name is set.
-   *  Defaults to "Discord Bot". Can be set via DISCORD_DEFAULT_BOT_NAME env var. */
-  defaultBotName?: string
-}
+export type { DiscordNotificationOptions } from './config'
 
 class DiscordNotificationModuleService extends MedusaService({
   DiscordWebhookMapping,
   DiscordOrderMessage,
   DiscordPluginSetting,
 }) {
-  private options_: DiscordNotificationOptions
+  private options_: ResolvedDiscordNotificationOptions
 
   constructor(container: any, options?: DiscordNotificationOptions) {
     super(...(arguments as any))
-    this.options_ = options || {}
+    this.options_ = resolveDiscordNotificationOptions(options)
   }
 
   getDefaultBotName(): string {
-    return this.options_.defaultBotName || 'Discord Bot'
+    return this.options_.defaultBotName
+  }
+
+  /** Locale used to format prices in Discord messages. */
+  getLocale(): string {
+    return this.options_.locale
   }
 
   async getSettings(): Promise<{ avatar_url?: string; footer_text?: string }> {
