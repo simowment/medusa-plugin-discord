@@ -1,4 +1,5 @@
 import { defineRouteConfig } from '@medusajs/admin-sdk'
+import { Discord } from '@medusajs/icons'
 import {
   Container,
   Heading,
@@ -13,6 +14,7 @@ import {
   FocusModal,
   toast,
   Tabs,
+  usePrompt,
 } from '@medusajs/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
@@ -21,6 +23,16 @@ import { getSuggestedDataPathsForEvent } from '../../../../shared/discord-fields
 
 const SETTINGS_QUERY_KEY = ['discord-settings']
 const MAPPINGS_QUERY_KEY = ['discord-mappings']
+const OPERATOR_ALERTS_QUERY_KEY = ['operator-alerts-status']
+
+const PRIVACY_NOTE =
+  'Discord is outside your store. The default messages show only the order number, statuses, items and total. ' +
+  'Placeholders such as {email}, {customer.phone} or {shipping_address.city} send customer personal data to Discord; ' +
+  'use them only if everyone in the channel may see it.'
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback
+}
 
 type DiscordSettings = {
   avatar_url?: string | null
@@ -39,7 +51,10 @@ type DiscordMapping = {
 
 type DiscordSettingsResponse = {
   settings?: DiscordSettings
+  default_bot_name?: string
 }
+
+type OperatorAlertsStatus = { configured: boolean; channel?: string | null }
 
 type DiscordMappingsResponse = {
   mappings?: DiscordMapping[]
@@ -54,8 +69,8 @@ const PRESET_EVENTS = [
   { value: 'order.placed', label: 'Order Placed (order.placed)' },
   { value: 'order.fulfillment_created', label: 'Fulfillment Created (order.fulfillment_created)' },
   {
-    value: 'fulfillment.shipment_created',
-    label: 'Shipment Created (fulfillment.shipment_created)',
+    value: 'shipment.created',
+    label: 'Order Shipped (shipment.created)',
   },
   { value: 'order.completed', label: 'Order Completed (order.completed)' },
   { value: 'order.canceled', label: 'Order Canceled (order.canceled)' },
@@ -71,14 +86,12 @@ const EXAMPLE_TEMPLATES: Record<string, string> = {
       embeds: [
         {
           title: '🛍️ New Order #{display_id}!',
-          description: 'An order was just placed by **{email}**.',
+          description: 'A new order was just placed.',
           color: 3447003,
           fields: [
             { name: 'Total Amount', value: '**{total}**', inline: true },
             { name: 'Payment Status', value: '{payment_status}', inline: true },
-            { name: 'Items', value: '{items}', inline: false },
           ],
-          thumbnail: { url: '{thumbnail}' },
           footer: { text: 'Powered by Medusa' },
         },
       ],
@@ -99,7 +112,7 @@ const EXAMPLE_TEMPLATES: Record<string, string> = {
     null,
     2,
   ),
-  'fulfillment.shipment_created': JSON.stringify(
+  'shipment.created': JSON.stringify(
     {
       embeds: [
         {
@@ -169,7 +182,7 @@ const EXAMPLE_TEMPLATES: Record<string, string> = {
       embeds: [
         {
           title: '👤 New Customer!',
-          description: '**{first_name} {last_name}** ({email}) just registered.',
+          description: 'A new customer account was created ({id}).',
           color: 3447003,
         },
       ],
@@ -182,7 +195,7 @@ const EXAMPLE_TEMPLATES: Record<string, string> = {
       embeds: [
         {
           title: '👤 Customer Updated!',
-          description: 'Customer **{email}** updated their profile.',
+          description: 'Customer {id} updated their profile.',
           color: 3447003,
         },
       ],
@@ -196,7 +209,7 @@ const EMPTY_FORM = {
   event_name: 'order.placed',
   webhook_url: '',
   channel_name: '',
-  is_active: true,
+  is_active: false,
   message_template: '',
   bot_name: '',
 }
@@ -215,6 +228,12 @@ function MappingModal({
   const queryClient = useQueryClient()
   const [form, setForm] = useState({ ...EMPTY_FORM })
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const settingsQuery = useQuery({
+    queryKey: SETTINGS_QUERY_KEY,
+    queryFn: () => sdk.client.fetch<DiscordSettingsResponse>('/admin/discord/settings'),
+    enabled: open,
+  })
+  const defaultBotName = settingsQuery.data?.default_bot_name
 
   useEffect(() => {
     if (!open) return
@@ -258,8 +277,8 @@ function MappingModal({
         )
       }
     },
-    onError: () => {
-      toast.error('Something went wrong while saving')
+    onError: (error) => {
+      toast.error('Mapping not saved', { description: errorMessage(error, 'Unknown error') })
     },
   })
 
@@ -306,10 +325,13 @@ function MappingModal({
     >
       <FocusModal.Content className="overflow-y-auto">
         <FocusModal.Header>
-          <div className="flex items-center gap-3">
-            <Heading level="h2">
-              {editingId ? 'Edit Webhook Mapping' : 'New Webhook Mapping'}
-            </Heading>
+          <div className="flex flex-col">
+            <FocusModal.Title asChild>
+              <Heading level="h2">{editingId ? 'Edit channel mapping' : 'New channel mapping'}</Heading>
+            </FocusModal.Title>
+            <FocusModal.Description className="sr-only">
+              Choose a store event and the Discord channel webhook that receives a message for it.
+            </FocusModal.Description>
           </div>
           <Button onClick={save} isLoading={saveMapping.isPending}>
             {editingId ? 'Save Changes' : 'Create Mapping'}
@@ -351,10 +373,12 @@ function MappingModal({
               </div>
 
               <div>
-                <Label htmlFor="modal-bot-name">Bot Name</Label>
+                <Label htmlFor="modal-bot-name">Bot name (optional)</Label>
                 <Input
                   id="modal-bot-name"
-                  placeholder="Leave empty to use global fallback"
+                  placeholder={
+                    defaultBotName ? `Leave empty to use "${defaultBotName}"` : 'Leave empty to use the default name'
+                  }
                   value={form.bot_name}
                   onChange={(e) => setForm({ ...form, bot_name: e.target.value })}
                 />
@@ -402,6 +426,9 @@ function MappingModal({
                   value={form.message_template}
                   onChange={(e) => setForm({ ...form, message_template: e.target.value })}
                 />
+                <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                  Leave empty for the default message. {PRIVACY_NOTE}
+                </Text>
               </div>
 
               <div className="flex items-center gap-2">
@@ -411,6 +438,9 @@ function MappingModal({
                   onCheckedChange={(checked) => setForm({ ...form, is_active: checked })}
                 />
                 <Label htmlFor="modal-active-toggle">Enabled</Label>
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  New mappings start disabled. When enabled, every matching store event posts to this channel.
+                </Text>
               </div>
             </div>
 
@@ -481,8 +511,8 @@ function SettingsTab() {
       queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
       toast.success('Settings saved successfully')
     },
-    onError: () => {
-      toast.error('Failed to save settings')
+    onError: (error) => {
+      toast.error('Settings not saved', { description: errorMessage(error, 'Unknown error') })
     },
   })
 
@@ -499,10 +529,18 @@ function SettingsTab() {
 
   return (
     <Container className="p-6">
-      <Heading level="h2" className="mb-4">
-        Global Settings
-      </Heading>
+      <Heading level="h2">Message appearance</Heading>
+      <Text size="small" className="text-ui-fg-subtle mb-4">
+        How messages from every mapping look in Discord.
+      </Text>
       <div className="flex max-w-lg flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <Label>Default bot name</Label>
+          <Text size="small">{settingsQuery.data?.default_bot_name || '—'}</Text>
+          <Text size="small" className="text-ui-fg-subtle">
+            Used when a mapping has no bot name. It is set in the plugin options (defaultBotName), not here.
+          </Text>
+        </div>
         <div className="flex flex-col gap-2">
           <Label>Default Avatar URL</Label>
           <Input
@@ -511,8 +549,7 @@ function SettingsTab() {
             onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
           />
           <Text size="small" className="text-ui-fg-subtle">
-            The icon URL to use for the Discord bot avatar if no custom bot name/avatar is provided
-            in the mappings. Leave empty to use Discord's default.
+            Image URL used as the bot avatar for every mapping. Leave empty to use Discord's default.
           </Text>
         </div>
         <div className="flex flex-col gap-2">
@@ -538,6 +575,7 @@ function SettingsTab() {
 
 function DiscordNotificationsPage() {
   const queryClient = useQueryClient()
+  const prompt = usePrompt()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingMapping, setEditingMapping] = useState<DiscordMapping | null>(null)
@@ -547,6 +585,23 @@ function DiscordNotificationsPage() {
     queryKey: MAPPINGS_QUERY_KEY,
     queryFn: () => sdk.client.fetch<DiscordMappingsResponse>('/admin/discord/mappings'),
   })
+
+  // Operator alerts (failed supplier orders, store problems) use a separate
+  // webhook configured with igm; this page only shows whether it is set up.
+  // An older backend without the status route answers 404: show "unknown".
+  const operatorAlertsQuery = useQuery({
+    queryKey: OPERATOR_ALERTS_QUERY_KEY,
+    queryFn: async (): Promise<OperatorAlertsStatus | null> => {
+      try {
+        return await sdk.client.fetch<OperatorAlertsStatus>('/admin/operator-alerts/status')
+      } catch (error) {
+        if ((error as { status?: number })?.status === 404) return null
+        throw error
+      }
+    },
+    retry: false,
+  })
+  const operatorAlerts = operatorAlertsQuery.data
 
   const mappings = mappingsQuery.data?.mappings || []
   const loading = mappingsQuery.isLoading
@@ -570,8 +625,8 @@ function DiscordNotificationsPage() {
         toast.error(data.message || 'Failed to delete mapping')
       }
     },
-    onError: () => {
-      toast.error('Failed to delete mapping')
+    onError: (error) => {
+      toast.error('Mapping not deleted', { description: errorMessage(error, 'Unknown error') })
     },
   })
 
@@ -589,8 +644,8 @@ function DiscordNotificationsPage() {
         toast.error(data.message || 'Failed to toggle status')
       }
     },
-    onError: () => {
-      toast.error('Failed to toggle mapping status')
+    onError: (error) => {
+      toast.error('Status not changed', { description: errorMessage(error, 'Unknown error') })
     },
   })
 
@@ -602,14 +657,13 @@ function DiscordNotificationsPage() {
       }),
     onSuccess: (data) => {
       if (data.success) {
-        toast.success('Test notification sent successfully!')
-        queryClient.invalidateQueries({ queryKey: MAPPINGS_QUERY_KEY })
+        toast.success('Sample message sent to Discord')
       } else {
-        toast.error(data.message || 'Webhook test failed')
+        toast.error(data.message || 'Sample message not sent')
       }
     },
-    onError: () => {
-      toast.error('Test request failed')
+    onError: (error) => {
+      toast.error('Sample message not sent', { description: errorMessage(error, 'Unknown error') })
     },
     onSettled: () => {
       setTestingId(null)
@@ -628,18 +682,32 @@ function DiscordNotificationsPage() {
     setModalOpen(true)
   }
 
-  const deleteMapping = (id: string) => {
-    if (!confirm('Are you sure you want to delete this webhook mapping?')) return
-    deleteMappingMutation.mutate(id)
+  const deleteMapping = async (m: DiscordMapping) => {
+    const confirmed = await prompt({
+      title: 'Delete this mapping?',
+      description: `"${m.event_name}" events will no longer post to ${m.channel_name || 'this channel'}.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+    })
+    if (!confirmed) return
+    deleteMappingMutation.mutate(m.id)
   }
 
   const toggleActive = (m: DiscordMapping, checked: boolean) => {
     toggleActiveMutation.mutate({ id: m.id, checked })
   }
 
-  const testWebhook = (id: string) => {
-    setTestingId(id)
-    testWebhookMutation.mutate(id)
+  const testWebhook = async (m: DiscordMapping) => {
+    const confirmed = await prompt({
+      title: 'Send a sample message?',
+      description: `Sends a sample message to ${m.channel_name || 'this Discord channel'} now. Everyone in the channel will see it. It uses made-up order data.`,
+      confirmText: 'Send sample',
+      cancelText: 'Cancel',
+      variant: 'confirmation',
+    })
+    if (!confirmed) return
+    setTestingId(m.id)
+    testWebhookMutation.mutate(m.id)
   }
 
   const maskWebhookUrl = (url: string) => {
@@ -658,15 +726,37 @@ function DiscordNotificationsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <Heading level="h1">Discord Notifications</Heading>
+          <Heading level="h1">Discord notifications</Heading>
           <Text size="small" className="text-ui-fg-subtle mt-0.5">
-            Route events from your Medusa store directly to your Discord channels using webhooks.
+            Optional: post a message to a Discord channel when a store event happens (a new order, a shipment, a
+            new customer). Each mapping links one event to one channel webhook.
           </Text>
         </div>
         <Button variant="secondary" onClick={openAdd}>
-          Add Mapping
+          Add mapping
         </Button>
       </div>
+
+      <Container className="flex flex-col gap-1 p-4">
+        <div className="flex items-center gap-2">
+          <Text size="small" weight="plus">Operator alerts</Text>
+          {operatorAlertsQuery.isLoading ? null : operatorAlerts ? (
+            <Badge size="2xsmall" color={operatorAlerts.configured ? 'green' : 'grey'}>
+              {operatorAlerts.configured ? 'Configured' : 'Not configured'}
+            </Badge>
+          ) : (
+            <Badge size="2xsmall" color="grey">Unknown</Badge>
+          )}
+        </div>
+        <Text size="small" className="text-ui-fg-subtle">
+          Alerts for problems that need you (failed supplier orders, store problems) go to a separate operator channel
+          set up with the igm CLI, not through the mappings below.
+          {operatorAlerts?.configured && operatorAlerts.channel ? ` Channel: ${operatorAlerts.channel}.` : ''}
+          {!operatorAlertsQuery.isLoading && !operatorAlerts ? ' This backend does not report their status.' : ''}
+        </Text>
+      </Container>
+
+      <Text size="small" className="text-ui-fg-subtle">{PRIVACY_NOTE}</Text>
 
       <MappingModal
         open={modalOpen}
@@ -677,8 +767,8 @@ function DiscordNotificationsPage() {
 
       <Tabs defaultValue="webhooks">
         <Tabs.List>
-          <Tabs.Trigger value="webhooks">Webhooks</Tabs.Trigger>
-          <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
+          <Tabs.Trigger value="webhooks">Mappings</Tabs.Trigger>
+          <Tabs.Trigger value="settings">Appearance</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="webhooks" className="mt-4">
@@ -689,7 +779,9 @@ function DiscordNotificationsPage() {
               </div>
             ) : mappings.length === 0 ? (
               <div className="p-6 text-center">
-                <Text className="text-ui-fg-muted">No webhook mappings configured yet.</Text>
+                <Text className="text-ui-fg-muted">
+                  No mappings yet. Nothing is posted to Discord. Click "Add mapping" to send an event to a channel.
+                </Text>
               </div>
             ) : (
               <Table>
@@ -734,15 +826,15 @@ function DiscordNotificationsPage() {
                           <Button
                             variant="secondary"
                             size="small"
-                            onClick={() => testWebhook(m.id)}
+                            onClick={() => void testWebhook(m)}
                             isLoading={testingId === m.id}
                           >
-                            Test
+                            Send test
                           </Button>
                           <Button variant="secondary" size="small" onClick={() => openEdit(m)}>
                             Edit
                           </Button>
-                          <Button variant="danger" size="small" onClick={() => deleteMapping(m.id)}>
+                          <Button variant="danger" size="small" onClick={() => void deleteMapping(m)}>
                             Delete
                           </Button>
                         </div>
@@ -763,7 +855,8 @@ function DiscordNotificationsPage() {
 }
 
 export const config = defineRouteConfig({
-  label: 'Discord Notifications',
+  label: 'Discord notifications',
+  icon: Discord,
 })
 
 export default DiscordNotificationsPage

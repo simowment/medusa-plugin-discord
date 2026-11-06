@@ -143,6 +143,12 @@ const mockCustomer = {
   phone: '+15559876543',
 }
 
+const TEST_TIMEOUT_MS = 10_000
+
+/**
+ * Send one sample message to a mapping's channel now. This posts a real
+ * message to Discord; the admin page asks for confirmation first.
+ */
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const discordSvc = req.scope.resolve(DISCORD_NOTIFICATION_MODULE) as any
   const body = req.body as Record<string, any>
@@ -203,11 +209,25 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       }
     }
 
-    const response = await fetch(mapping.webhook_url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+    let response: Response
+    try {
+      response = await fetch(mapping.webhook_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+      })
+    } catch (err: any) {
+      const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError'
+      return fail(
+        res,
+        timedOut ? 504 : 502,
+        timedOut ? 'WEBHOOK_TIMEOUT' : 'WEBHOOK_UNREACHABLE',
+        timedOut
+          ? `Discord did not answer within ${TEST_TIMEOUT_MS / 1000} seconds`
+          : `Could not reach Discord: ${err?.message || 'network error'}`,
+      )
+    }
 
     if (!response.ok) {
       const errText = await response.text()

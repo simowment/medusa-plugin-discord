@@ -41,7 +41,9 @@ export const createDiscordWebhookMappingStep = createStep(
       event_name: input.event_name,
       webhook_url: input.webhook_url,
       channel_name: input.channel_name || null,
-      is_active: input.is_active !== undefined ? input.is_active : true,
+      // Off until the admin turns it on: a new mapping must not start posting
+      // every matching store event the moment it is saved.
+      is_active: input.is_active !== undefined ? input.is_active : false,
       message_template: input.message_template || null,
       bot_name: input.bot_name || null,
     })

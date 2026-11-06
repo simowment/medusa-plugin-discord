@@ -8,11 +8,12 @@ Discord webhook notifications for **Medusa v2**. Route store events to Discord c
 
 - **Live message editing**: one Discord message per order and webhook, edited in place on later events. No channel spam.
 - **Shipment & tracking**: shows tracking numbers and links as Discord markdown once a fulfillment is shipped.
-- **Default rich embeds**: color-coded order, payment, fulfillment and shipment status, customer info, total and items.
+- **Default rich embeds**: color-coded order, payment, fulfillment and shipment status, total and items (no customer personal data).
 - **Custom templates**: plain-text/Markdown or full JSON webhook payloads with `{placeholders}`.
 - **Per-mapping bot name**, plus a global default from plugin options.
 - **Global avatar and footer** configurable from the Admin UI.
-- **Admin UI** under Settings → Discord Notifications, with a placeholder sidebar and a test-send button.
+- **Admin UI** under Settings → Discord notifications, with a placeholder sidebar, a confirmed "Send test" button and a read-only operator alerts status.
+- **Privacy by default**: default messages carry the order number, statuses, items and total, never customer names, emails, phones or addresses. New mappings start disabled.
 - **System alerts**: other code can call `sendAlert()` on the module service to post to `system.alert` mappings.
 
 ## Compatibility
@@ -58,7 +59,7 @@ modules: [
 ],
 ```
 
-Then run the migrations (see below) and open **Settings → Discord Notifications** in the Admin.
+Then run the migrations (see below) and open **Settings → Discord notifications** in the Admin.
 
 ## Configuration
 
@@ -100,9 +101,9 @@ All routes are admin routes and require an authenticated admin user (session or 
 | `POST`   | `/admin/discord/mappings`     | Create a mapping.                                                       |
 | `POST`   | `/admin/discord/mappings/:id` | Update a mapping.                                                       |
 | `DELETE` | `/admin/discord/mappings/:id` | Delete a mapping.                                                       |
-| `GET`    | `/admin/discord/settings`     | Read global avatar and footer settings.                                 |
+| `GET`    | `/admin/discord/settings`     | Read global avatar and footer settings, plus the read-only `default_bot_name` from the plugin options. |
 | `POST`   | `/admin/discord/settings`     | Update global avatar and footer settings.                               |
-| `POST`   | `/admin/discord/verify`       | Send a test message for mapping `id` (body or query) using sample data. |
+| `POST`   | `/admin/discord/verify`       | Send a sample message for mapping `id` (body or query) to the real channel now, using sample data. Gives up after 10 s (`504 WEBHOOK_TIMEOUT`). |
 
 Mapping payload:
 
@@ -113,17 +114,18 @@ Mapping payload:
   "channel_name": "#orders",
   "bot_name": "Sales Bot",
   "is_active": true,
-  "message_template": "New order **#{display_id}** from **{email}**: **{total}**"
+  "message_template": "New order **#{display_id}**: **{total}**"
 }
 ```
 
-`webhook_url` must start with `https://discord.com/api/webhooks/` or `https://discordapp.com/api/webhooks/`.
+`webhook_url` must start with `https://discord.com/api/webhooks/` or `https://discordapp.com/api/webhooks/`. `is_active` defaults to `false` when omitted.
 
 ## Admin UI
 
-- **Route**: Settings → Discord Notifications (`src/admin/routes/settings/discord-notifications/page.tsx`).
-- **Mappings tab**: create, edit, enable/disable, delete and test mappings; pick an event, set a webhook URL, channel label, bot name and optional template. A sidebar lists placeholders for the selected event and inserts them at the cursor.
-- **Settings tab**: global avatar URL and footer text.
+- **Route**: Settings → Discord notifications (`src/admin/routes/settings/discord-notifications/page.tsx`).
+- **Operator alerts line**: read-only "Configured / Not configured" from `GET /admin/operator-alerts/status` (provided by the host backend, not this plugin; a 404 shows "Unknown"). Operator alerts use their own webhook, set up with the igm CLI.
+- **Mappings tab**: create, edit, enable/disable, delete (with a confirmation) and send a sample message (with a confirmation that it posts to the real channel now). New mappings start disabled. The bot name field shows the real fallback name. A sidebar lists placeholders for the selected event and inserts them at the cursor, with a privacy note on the personal-data placeholders.
+- **Appearance tab**: the fallback bot name (read-only, from `defaultBotName`), global avatar URL and footer text.
 
 The event picker offers `order.placed`, `order.fulfillment_created`, `fulfillment.shipment_created`, `order.completed`, `order.canceled`, `payment.captured`, `payment.refunded`, `customer.created` and `customer.updated`.
 
@@ -186,7 +188,7 @@ None needed. The plugin works entirely from backend events and the Admin.
 ## Security notes
 
 - Discord webhook URLs are secrets: anyone with the URL can post to the channel. They are stored in plain text in `discord_webhook_mapping` and returned by the admin mappings API, so restrict admin access accordingly.
-- Messages include customer names, emails and order details. Only route them to private channels.
+- Default messages include order details only (number, statuses, items, total; customer events show the customer ID). Placeholders such as `{email}`, `{customer.phone}` or `{shipping_address.city}` send personal data to Discord; use them only in private channels whose members may see it.
 - Admin routes require an authenticated admin user. Logs only include the webhook ID segment, not the full URL, for customer notifications.
 - The test-send route uses fixed sample data (`example.com` addresses), not real customers.
 

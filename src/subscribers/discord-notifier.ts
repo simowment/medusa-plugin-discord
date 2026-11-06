@@ -2,6 +2,9 @@ import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework'
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { DEFAULT_LOCALE, DISCORD_NOTIFICATION_MODULE } from '../modules/discord-notification'
 
+/** A slow Discord must not hold the event bus: give up after 10 seconds. */
+const DISCORD_TIMEOUT_MS = 10_000
+
 type EventPayload = {
   id: string
   order_id?: string
@@ -210,6 +213,12 @@ async function resolveOrderId(
   return null
 }
 
+const LEGACY_EVENT_ALIASES: Record<string, string[]> = {
+  'shipment.created': ['shipment.created', 'fulfillment.shipment_created'],
+}
+
+const eventNamesFor = (name: string): string[] => LEGACY_EVENT_ALIASES[name] ?? [name]
+
 export default async function discordNotificationHandler({
   event: { name, data },
   container,
@@ -245,8 +254,6 @@ export default async function discordNotificationHandler({
         return
       }
 
-      const nameStr =
-        [customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'New Customer'
       const title =
         name === 'customer.created'
           ? '👤 New Customer Registered'
@@ -265,10 +272,9 @@ export default async function discordNotificationHandler({
             title: title,
             description: description,
             color: 3447003, // Blue
-            fields: [
-              { name: 'Name', value: nameStr, inline: true },
-              { name: 'Email', value: customer.email || 'N/A', inline: true },
-            ],
+            // No name, email or phone by default: a Discord channel is not a
+            // place for customer personal data. A custom template can opt in.
+            fields: [{ name: 'Customer ID', value: customer.id, inline: true }],
             timestamp: new Date().toISOString(),
             footer: { text: globalSettings.footer_text || 'Medusa Storefront' },
           },
@@ -310,6 +316,7 @@ export default async function discordNotificationHandler({
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(finalPayload),
+              signal: AbortSignal.timeout(DISCORD_TIMEOUT_MS),
             })
           } catch (e) {
             logger.error(
@@ -504,11 +511,6 @@ export default async function discordNotificationHandler({
           inline: true,
         },
         { name: 'Shipment / Delivery', value: shipmentStr, inline: false },
-        {
-          name: 'Customer Info',
-          value: `${order.shipping_address?.first_name || order.customer?.first_name || ''} ${order.shipping_address?.last_name || order.customer?.last_name || ''} (${order.email || 'N/A'})`,
-          inline: false,
-        },
         { name: 'Total Amount', value: `**${formattedTotal}**`, inline: true },
         { name: 'Items Ordered', value: itemsDescription, inline: false },
       ],
@@ -573,7 +575,7 @@ export default async function discordNotificationHandler({
           }
 
           // Choose template: use current event's template, or any template from active mappings on this URL
-          const currentEventMapping = mappings.find((m: any) => m.event_name === name)
+          const currentEventMapping = mappings.find((m: any) => eventNamesFor(name).includes(m.event_name))
           const template =
             currentEventMapping?.message_template ||
             mappings.find((m: any) => m.message_template)?.message_template ||
@@ -590,6 +592,7 @@ export default async function discordNotificationHandler({
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(editPayload),
+              signal: AbortSignal.timeout(DISCORD_TIMEOUT_MS),
             })
 
             if (response.status === 404) {
@@ -610,8 +613,10 @@ export default async function discordNotificationHandler({
     }
 
     // 2. SEND NEW MESSAGES FOR NEW MAPPINGS TRIGGERED BY THIS EVENT
+    // Mappings saved before the rename used 'fulfillment.shipment_created',
+    // which Medusa 2.x never emits; they still fire on 'shipment.created'.
     const mappingsForEvent = await discordSvc.listDiscordWebhookMappings({
-      event_name: name,
+      event_name: eventNamesFor(name),
       is_active: true,
     })
 
@@ -630,6 +635,7 @@ export default async function discordNotificationHandler({
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(newPayload),
+              signal: AbortSignal.timeout(DISCORD_TIMEOUT_MS),
             })
 
             if (!response.ok) {

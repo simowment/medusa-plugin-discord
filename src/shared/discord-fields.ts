@@ -8,7 +8,7 @@ export const DISCORD_EVENTS = [
   'order.updated',
   'order.fulfillment_created',
   'fulfillment.created',
-  'fulfillment.shipment_created',
+  'shipment.created',
   'fulfillment.delivery_created',
   'customer.created',
   'customer.updated',
@@ -54,7 +54,7 @@ export const RETURN_FIELDS = ['id', 'status', 'order_id']
 export function getSuggestedDataPathsForEvent(eventName: string): string[] {
   if (eventName.startsWith('order.')) return ORDER_FIELDS
   if (eventName.startsWith('customer.')) return CUSTOMER_FIELDS
-  if (eventName.startsWith('fulfillment.')) {
+  if (eventName.startsWith('fulfillment.') || eventName === 'shipment.created') {
     return unique([...FULFILLMENT_FIELDS, ...prefixPaths('order', ORDER_FIELDS)])
   }
   if (eventName.startsWith('return.')) {
