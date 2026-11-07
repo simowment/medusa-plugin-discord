@@ -52,6 +52,7 @@ type DiscordMapping = {
 type DiscordSettingsResponse = {
   settings?: DiscordSettings
   default_bot_name?: string
+  setup_help?: { text: string | null; url: string | null } | null
 }
 
 type OperatorAlertsStatus = { configured: boolean; channel?: string | null }
@@ -587,7 +588,8 @@ function DiscordNotificationsPage() {
   })
 
   // Operator alerts (failed supplier orders, store problems) use a separate
-  // webhook configured with igm; this page only shows whether it is set up.
+  // webhook set by the store host (backend configuration and a restart); this
+  // page only shows whether it is set up.
   // An older backend without the status route answers 404: show "unknown".
   const operatorAlertsQuery = useQuery({
     queryKey: OPERATOR_ALERTS_QUERY_KEY,
@@ -602,6 +604,11 @@ function DiscordNotificationsPage() {
     retry: false,
   })
   const operatorAlerts = operatorAlertsQuery.data
+  const setupHelpQuery = useQuery({
+    queryKey: SETTINGS_QUERY_KEY,
+    queryFn: () => sdk.client.fetch<DiscordSettingsResponse>('/admin/discord/settings'),
+  })
+  const setupHelp = setupHelpQuery.data?.setup_help
 
   const mappings = mappingsQuery.data?.mappings || []
   const loading = mappingsQuery.isLoading
@@ -749,11 +756,28 @@ function DiscordNotificationsPage() {
           )}
         </div>
         <Text size="small" className="text-ui-fg-subtle">
-          Alerts for problems that need you (failed supplier orders, store problems) go to a separate operator channel
-          set up with the igm CLI, not through the mappings below.
+          Alerts for problems that need you (failed supplier orders, store problems) go to a separate operator channel,
+          not through the mappings below. Its webhook is set in the backend configuration (for example an environment variable) and
+          takes a backend restart; this page shows whether it is set up.
           {operatorAlerts?.configured && operatorAlerts.channel ? ` Channel: ${operatorAlerts.channel}.` : ''}
           {!operatorAlertsQuery.isLoading && !operatorAlerts ? ' This backend does not report their status.' : ''}
         </Text>
+        {setupHelp && (setupHelp.text || setupHelp.url) ? (
+          <Text size="small" className="text-ui-fg-subtle">
+            {setupHelp.text}
+            {setupHelp.text && setupHelp.url ? ' ' : null}
+            {setupHelp.url ? (
+              <a
+                href={setupHelp.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-ui-fg-interactive hover:underline"
+              >
+                More about setup
+              </a>
+            ) : null}
+          </Text>
+        ) : null}
       </Container>
 
       <Text size="small" className="text-ui-fg-subtle">{PRIVACY_NOTE}</Text>

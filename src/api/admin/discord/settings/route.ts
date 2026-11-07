@@ -11,6 +11,7 @@ type DiscordSettings = {
 type DiscordSettingsService = {
   getSettings: () => Promise<DiscordSettings>
   getDefaultBotName: () => string
+  getSetupHelp?: () => { text: string | null; url: string | null } | null
 }
 
 export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
@@ -20,7 +21,11 @@ export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     const settings = await discordSvc.getSettings()
     // The fallback bot name comes from the plugin options, not from these
     // settings; it is returned read-only so the admin can show the real value.
-    res.json({ settings, default_bot_name: discordSvc.getDefaultBotName() })
+    res.json({
+      settings,
+      default_bot_name: discordSvc.getDefaultBotName(),
+      setup_help: discordSvc.getSetupHelp?.() ?? null,
+    })
   } catch {
     res.status(500).json({ message: 'Internal server error' })
   }

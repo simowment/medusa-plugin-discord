@@ -27,6 +27,11 @@ class DiscordNotificationModuleService extends MedusaService({
     return this.options_.defaultBotName
   }
 
+  /** Host setup hint for the Admin page, or `null` when the option is unset. */
+  getSetupHelp(): { text: string | null; url: string | null } | null {
+    return this.options_.setupHelp
+  }
+
   /** Locale used to format prices in Discord messages. */
   getLocale(): string {
     return this.options_.locale

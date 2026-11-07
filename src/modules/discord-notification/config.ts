@@ -16,11 +16,19 @@ export type DiscordNotificationOptions = {
    * Default: "en-US".
    */
   locale?: string
+  /**
+   * Optional host-specific setup hint shown on the Admin page (for example how
+   * this host sets the operator alerts webhook). Not used for sending.
+   */
+  setupHelp?: { text?: string; url?: string }
 }
+
+export type SetupHelp = { text: string | null; url: string | null }
 
 export type ResolvedDiscordNotificationOptions = {
   defaultBotName: string
   locale: string
+  setupHelp: SetupHelp | null
 }
 
 export const DEFAULT_BOT_NAME = 'Discord Bot'
@@ -33,5 +41,12 @@ export function resolveDiscordNotificationOptions(
   return {
     defaultBotName: options.defaultBotName || env.DISCORD_DEFAULT_BOT_NAME || DEFAULT_BOT_NAME,
     locale: options.locale || DEFAULT_LOCALE,
+    setupHelp: resolveSetupHelp(options.setupHelp),
   }
+}
+
+function resolveSetupHelp(help: DiscordNotificationOptions['setupHelp']): SetupHelp | null {
+  const text = typeof help?.text === 'string' && help.text.trim() ? help.text.trim() : null
+  const url = typeof help?.url === 'string' && help.url.trim() ? help.url.trim() : null
+  return text || url ? { text, url } : null
 }

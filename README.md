@@ -69,6 +69,7 @@ All options are optional. They are resolved in one place (`src/modules/discord-n
 | ---------------- | -------------------------- | --------------- | --------------------------------------------------------------------------- |
 | `defaultBotName` | `DISCORD_DEFAULT_BOT_NAME` | `"Discord Bot"` | Bot name used when a mapping has no `bot_name`.                             |
 | `locale`         | none                       | `"en-US"`       | Locale passed to `Intl.NumberFormat` when formatting prices in the order currency. |
+| `setupHelp`      | none                       | unset           | Optional `{ text?: string; url?: string }` hint shown on the Admin page, for hosts that set up the operator alerts webhook their own way. Returned by `GET /admin/discord/settings` as `setup_help`. |
 
 Webhook URLs are not plugin options: each one is stored on a mapping created in the Admin (or through the admin API). Nothing is sent until at least one active mapping exists.
 
@@ -101,7 +102,7 @@ All routes are admin routes and require an authenticated admin user (session or 
 | `POST`   | `/admin/discord/mappings`     | Create a mapping.                                                       |
 | `POST`   | `/admin/discord/mappings/:id` | Update a mapping.                                                       |
 | `DELETE` | `/admin/discord/mappings/:id` | Delete a mapping.                                                       |
-| `GET`    | `/admin/discord/settings`     | Read global avatar and footer settings, plus the read-only `default_bot_name` from the plugin options. |
+| `GET`    | `/admin/discord/settings`     | Read global avatar and footer settings, plus the read-only `default_bot_name` and `setup_help` from the plugin options. |
 | `POST`   | `/admin/discord/settings`     | Update global avatar and footer settings.                               |
 | `POST`   | `/admin/discord/verify`       | Send a sample message for mapping `id` (body or query) to the real channel now, using sample data. Gives up after 10 s (`504 WEBHOOK_TIMEOUT`). |
 
@@ -123,7 +124,7 @@ Mapping payload:
 ## Admin UI
 
 - **Route**: Settings → Discord notifications (`src/admin/routes/settings/discord-notifications/page.tsx`).
-- **Operator alerts line**: read-only "Configured / Not configured" from `GET /admin/operator-alerts/status` (provided by the host backend, not this plugin; a 404 shows "Unknown"). Operator alerts use their own webhook, set up with the igm CLI.
+- **Operator alerts line**: read-only "Configured / Not configured" from `GET /admin/operator-alerts/status` (provided by the host backend, not this plugin; a 404 shows "Unknown"). Operator alerts use their own webhook, set in the host backend configuration (a restart applies it). The optional `setupHelp` text is shown under this line.
 - **Mappings tab**: create, edit, enable/disable, delete (with a confirmation) and send a sample message (with a confirmation that it posts to the real channel now). New mappings start disabled. The bot name field shows the real fallback name. A sidebar lists placeholders for the selected event and inserts them at the cursor, with a privacy note on the personal-data placeholders.
 - **Appearance tab**: the fallback bot name (read-only, from `defaultBotName`), global avatar URL and footer text.
 
