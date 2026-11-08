@@ -124,7 +124,7 @@ Mapping payload:
 ## Admin UI
 
 - **Route**: Settings → Discord notifications (`src/admin/routes/settings/discord-notifications/page.tsx`).
-- **Operator alerts line**: read-only "Configured / Not configured" from `GET /admin/operator-alerts/status` (provided by the host backend, not this plugin; a 404 shows "Unknown"). Operator alerts use their own webhook, set in the host backend configuration (a restart applies it). The optional `setupHelp` text is shown under this line.
+- **Operator alerts line**: read-only "Configured / Not configured" from `GET /admin/operator-alerts/status` (provided by the host backend, not this plugin; a 404 shows "Unknown"). Operator alerts use their own webhook, which the host sets up outside this plugin (for example on a host settings page). The optional `setupHelp` text and link are shown under this line; a `url` starting with a single `/` (a page in the same admin, such as `/app/settings/operator-alerts`) opens in the same tab, any other URL in a new tab.
 - **Mappings tab**: create, edit, enable/disable, delete (with a confirmation) and send a sample message (with a confirmation that it posts to the real channel now). New mappings start disabled. The bot name field shows the real fallback name. A sidebar lists placeholders for the selected event and inserts them at the cursor, with a privacy note on the personal-data placeholders.
 - **Appearance tab**: the fallback bot name (read-only, from `defaultBotName`), global avatar URL and footer text.
 

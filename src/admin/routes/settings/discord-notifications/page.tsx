@@ -588,8 +588,8 @@ function DiscordNotificationsPage() {
   })
 
   // Operator alerts (failed supplier orders, store problems) use a separate
-  // webhook set by the store host (backend configuration and a restart); this
-  // page only shows whether it is set up.
+  // webhook that the store host sets up (setupHelp says where); this page only
+  // shows whether it is set up.
   // An older backend without the status route answers 404: show "unknown".
   const operatorAlertsQuery = useQuery({
     queryKey: OPERATOR_ALERTS_QUERY_KEY,
@@ -748,17 +748,16 @@ function DiscordNotificationsPage() {
         <div className="flex items-center gap-2">
           <Text size="small" weight="plus">Operator alerts</Text>
           {operatorAlertsQuery.isLoading ? null : operatorAlerts ? (
-            <Badge size="2xsmall" color={operatorAlerts.configured ? 'green' : 'grey'}>
-              {operatorAlerts.configured ? 'Configured' : 'Not configured'}
+            <Badge size="2xsmall" color={operatorAlerts.configured ? 'green' : 'orange'}>
+              {operatorAlerts.configured ? 'Set up' : 'Not set up'}
             </Badge>
           ) : (
             <Badge size="2xsmall" color="grey">Unknown</Badge>
           )}
         </div>
         <Text size="small" className="text-ui-fg-subtle">
-          Alerts for problems that need you (failed supplier orders, store problems) go to a separate operator channel,
-          not through the mappings below. Its webhook is set in the backend configuration (for example an environment variable) and
-          takes a backend restart; this page shows whether it is set up.
+          Alerts for problems that need you (failed supplier orders, store problems) do not use the mappings below.
+          They have their own settings page.
           {operatorAlerts?.configured && operatorAlerts.channel ? ` Channel: ${operatorAlerts.channel}.` : ''}
           {!operatorAlertsQuery.isLoading && !operatorAlerts ? ' This backend does not report their status.' : ''}
         </Text>
@@ -767,14 +766,21 @@ function DiscordNotificationsPage() {
             {setupHelp.text}
             {setupHelp.text && setupHelp.url ? ' ' : null}
             {setupHelp.url ? (
-              <a
-                href={setupHelp.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-ui-fg-interactive hover:underline"
-              >
-                More about setup
-              </a>
+              setupHelp.url.startsWith('/') && !setupHelp.url.startsWith('//') ? (
+                // A path inside this admin (for example a host settings page): same tab.
+                <a href={setupHelp.url} className="text-ui-fg-interactive hover:underline">
+                  Open setup
+                </a>
+              ) : (
+                <a
+                  href={setupHelp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-ui-fg-interactive hover:underline"
+                >
+                  More about setup
+                </a>
+              )
             ) : null}
           </Text>
         ) : null}
