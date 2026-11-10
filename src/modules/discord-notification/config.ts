@@ -8,7 +8,7 @@
 export type DiscordNotificationOptions = {
   /**
    * Global fallback bot name shown in Discord when a mapping has no `bot_name`.
-   * Env fallback: `DISCORD_DEFAULT_BOT_NAME`. Default: "Discord Bot".
+   * Env fallback: `DISCORD_DEFAULT_BOT_NAME`. Default: "Store Bot". Words Discord forbids ("discord", "clyde") are removed.
    */
   defaultBotName?: string
   /**
@@ -31,7 +31,21 @@ export type ResolvedDiscordNotificationOptions = {
   setupHelp: SetupHelp | null
 }
 
-export const DEFAULT_BOT_NAME = 'Discord Bot'
+export const DEFAULT_BOT_NAME = 'Store Bot'
+
+/**
+ * A webhook username Discord accepts. Discord rejects any username containing
+ * "discord" or "clyde" (400 `Username cannot contain "discord"`) and caps it at 80
+ * characters, so those words are dropped and an empty result falls back to the default.
+ */
+export function safeBotName(name?: string | null): string {
+  const cleaned = (name ?? '')
+    .replace(/discord|clyde/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+  return cleaned || DEFAULT_BOT_NAME
+}
 export const DEFAULT_LOCALE = 'en-US'
 
 export function resolveDiscordNotificationOptions(
@@ -39,7 +53,7 @@ export function resolveDiscordNotificationOptions(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolvedDiscordNotificationOptions {
   return {
-    defaultBotName: options.defaultBotName || env.DISCORD_DEFAULT_BOT_NAME || DEFAULT_BOT_NAME,
+    defaultBotName: safeBotName(options.defaultBotName || env.DISCORD_DEFAULT_BOT_NAME),
     locale: options.locale || DEFAULT_LOCALE,
     setupHelp: resolveSetupHelp(options.setupHelp),
   }

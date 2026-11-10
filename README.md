@@ -67,7 +67,7 @@ All options are optional. They are resolved in one place (`src/modules/discord-n
 
 | Option           | Env fallback               | Default         | Description                                                                 |
 | ---------------- | -------------------------- | --------------- | --------------------------------------------------------------------------- |
-| `defaultBotName` | `DISCORD_DEFAULT_BOT_NAME` | `"Discord Bot"` | Bot name used when a mapping has no `bot_name`.                             |
+| `defaultBotName` | `DISCORD_DEFAULT_BOT_NAME` | `"Store Bot"` | Bot name used when a mapping has no `bot_name`. Discord rejects names containing "discord" or "clyde", so those words are removed from every bot name. |
 | `locale`         | none                       | `"en-US"`       | Locale passed to `Intl.NumberFormat` when formatting prices in the order currency. |
 | `setupHelp`      | none                       | unset           | Optional `{ text?: string; url?: string }` hint shown on the Admin page, for hosts that set up the operator alerts webhook their own way. Returned by `GET /admin/discord/settings` as `setup_help`. |
 

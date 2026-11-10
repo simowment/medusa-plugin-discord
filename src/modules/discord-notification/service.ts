@@ -1,3 +1,4 @@
+import { safeBotName } from './config'
 import { MedusaService } from '@medusajs/framework/utils'
 import DiscordWebhookMapping from './models/discord_webhook_mapping'
 import DiscordOrderMessage from './models/discord_order_message'
@@ -77,7 +78,7 @@ class DiscordNotificationModuleService extends MedusaService({
     const globalSettings = await this.getSettings()
 
     const payload: Record<string, unknown> = {
-      username: this.getDefaultBotName(),
+      username: safeBotName(this.getDefaultBotName()),
       embeds: [
         {
           title: alert.title,

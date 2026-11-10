@@ -1,3 +1,4 @@
+import { safeBotName } from '../../../../modules/discord-notification/config'
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http'
 import { DEFAULT_LOCALE, DISCORD_NOTIFICATION_MODULE } from '../../../../modules/discord-notification'
 import { ok, fail } from '../../../../shared/http'
@@ -174,20 +175,20 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       try {
         const parsedJson = JSON.parse(content)
         payload = {
-          username: mapping.bot_name || discordSvc.getDefaultBotName(),
+          username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
           ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
           ...parsedJson,
         }
       } catch (e) {
         payload = {
-          username: mapping.bot_name || discordSvc.getDefaultBotName(),
+          username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
           ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
           content: content,
         }
       }
     } else {
       payload = {
-        username: mapping.bot_name || discordSvc.getDefaultBotName(),
+        username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
         embeds: [
           {
             title: '🔔 Connection Test',

@@ -1,3 +1,4 @@
+import { safeBotName } from '../modules/discord-notification/config'
 import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework'
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils'
 import { DEFAULT_LOCALE, DISCORD_NOTIFICATION_MODULE } from '../modules/discord-notification'
@@ -266,7 +267,7 @@ export default async function discordNotificationHandler({
           : `Customer account **${customer.id}** was updated.`
 
       const defaultPayload = {
-        username: discordSvc.getDefaultBotName(),
+        username: safeBotName(discordSvc.getDefaultBotName()),
         embeds: [
           {
             title: title,
@@ -294,13 +295,13 @@ export default async function discordNotificationHandler({
               try {
                 const parsedJson = JSON.parse(content)
                 finalPayload = {
-                  username: mapping.bot_name || discordSvc.getDefaultBotName(),
+                  username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
                   ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
                   ...parsedJson,
                 }
               } catch (e) {
                 finalPayload = {
-                  username: mapping.bot_name || discordSvc.getDefaultBotName(),
+                  username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
                   ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
                   content: content,
                 }
@@ -308,7 +309,7 @@ export default async function discordNotificationHandler({
             } else {
               finalPayload = {
                 ...defaultPayload,
-                username: mapping.bot_name || discordSvc.getDefaultBotName(),
+                username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
               }
             }
 
@@ -531,21 +532,21 @@ export default async function discordNotificationHandler({
         try {
           const parsedJson = JSON.parse(content)
           return {
-            username: resolvedBotName,
+            username: safeBotName(resolvedBotName),
             ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
             ...parsedJson,
           }
         } catch (e) {
           // Not JSON, send as plain text
           return {
-            username: resolvedBotName,
+            username: safeBotName(resolvedBotName),
             ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
             content: content,
           }
         }
       } else {
         return {
-          username: resolvedBotName,
+          username: safeBotName(resolvedBotName),
           ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
           embeds: [defaultEmbed],
         }
