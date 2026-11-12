@@ -15,7 +15,7 @@ function getWebhookLogId(webhookUrl: string) {
   try {
     const parsed = new URL(webhookUrl)
     const parts = parsed.pathname.split('/').filter(Boolean)
-    return parts.at(-2) ?? 'unknown'
+    return parts[parts.length - 2] ?? 'unknown'
   } catch {
     return 'invalid-url'
   }

@@ -1,4 +1,3 @@
-import { safeBotName } from './config'
 import { MedusaService } from '@medusajs/framework/utils'
 import DiscordWebhookMapping from './models/discord_webhook_mapping'
 import DiscordOrderMessage from './models/discord_order_message'
@@ -6,6 +5,7 @@ import { DiscordPluginSetting } from './models/discord_plugin_setting'
 import type { AlertPayload } from '../../shared/types'
 import {
   resolveDiscordNotificationOptions,
+  safeBotName,
   type DiscordNotificationOptions,
   type ResolvedDiscordNotificationOptions,
 } from './config'

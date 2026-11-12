@@ -20,7 +20,7 @@ Discord webhook notifications for **Medusa v2**. Route store events to Discord c
 
 | Requirement | Version                                               |
 | ----------- | ----------------------------------------------------- |
-| Medusa      | `^2.21.2` (`@medusajs/framework`, `@medusajs/medusa`) |
+| Medusa      | `^2.22.6` (`@medusajs/framework`, `@medusajs/medusa`) |
 | Admin       | `@medusajs/ui ^4.0.25`, React 18                      |
 | Node.js     | `>= 20.19.0`                                          |
 
