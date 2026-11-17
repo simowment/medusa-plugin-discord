@@ -17,6 +17,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import { sdk } from '../../../lib/sdk'
+import { InstallerCode, InstallerHint } from '../../../components/ui/installer-hint'
 import { getSuggestedDataPathsForEvent } from '../../../../shared/discord-fields'
 
 const SETTINGS_QUERY_KEY = ['discord-settings']
@@ -539,12 +540,12 @@ function SettingsTab() {
           <Text size="small" className="text-ui-fg-subtle">
             Used when a mapping has no bot name. Your installer sets it; it cannot be changed here.
           </Text>
-          <details className="text-ui-fg-subtle">
-            <summary className="cursor-pointer text-xs">For your installer</summary>
-            <Text size="small" className="text-ui-fg-subtle mt-1">
-              The default bot name comes from the plugin option <code>defaultBotName</code>.
+          <InstallerHint>
+            <Text size="small" className="text-ui-fg-subtle">
+              The default bot name comes from the plugin option:
             </Text>
-          </details>
+            <InstallerCode>defaultBotName</InstallerCode>
+          </InstallerHint>
         </div>
         <div className="flex flex-col gap-2">
           <Label>Default Avatar URL</Label>
