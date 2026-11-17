@@ -1,5 +1,3 @@
-import { defineRouteConfig } from '@medusajs/admin-sdk'
-import { Discord } from '@medusajs/icons'
 import {
   Container,
   Heading,
@@ -539,8 +537,14 @@ function SettingsTab() {
           <Label>Default bot name</Label>
           <Text size="small">{settingsQuery.data?.default_bot_name || '—'}</Text>
           <Text size="small" className="text-ui-fg-subtle">
-            Used when a mapping has no bot name. It is set in the plugin options (defaultBotName), not here.
+            Used when a mapping has no bot name. Your installer sets it; it cannot be changed here.
           </Text>
+          <details className="text-ui-fg-subtle">
+            <summary className="cursor-pointer text-xs">For your installer</summary>
+            <Text size="small" className="text-ui-fg-subtle mt-1">
+              The default bot name comes from the plugin option <code>defaultBotName</code>.
+            </Text>
+          </details>
         </div>
         <div className="flex flex-col gap-2">
           <Label>Default Avatar URL</Label>
@@ -797,7 +801,7 @@ function DiscordNotificationsPage() {
 
       <Tabs defaultValue="webhooks">
         <Tabs.List>
-          <Tabs.Trigger value="webhooks">Mappings</Tabs.Trigger>
+          <Tabs.Trigger value="webhooks">Which events go where</Tabs.Trigger>
           <Tabs.Trigger value="settings">Appearance</Tabs.Trigger>
         </Tabs.List>
 
@@ -884,9 +888,7 @@ function DiscordNotificationsPage() {
   )
 }
 
-export const config = defineRouteConfig({
-  label: 'Discord notifications',
-  icon: Discord,
-})
+// No sidebar label: Settings > Connected apps and Settings > Notifications link here, so the
+// page has a single entry point. The route itself stays, so old links keep working.
 
 export default DiscordNotificationsPage

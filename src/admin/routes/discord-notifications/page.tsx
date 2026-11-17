@@ -1,12 +1,6 @@
-import { defineRouteConfig } from '@medusajs/admin-sdk'
-import { Discord } from '@medusajs/icons'
 import SettingsPage from '../settings/discord-notifications/page'
 
-// Same page as Settings > Discord notifications, also listed in the main sidebar so it can be
-// reached without going through Settings.
-export const config = defineRouteConfig({
-  label: 'Discord notifications',
-  icon: Discord,
-})
-
+// Same page as /settings/discord-notifications. It has no sidebar label any more (one entry
+// point per job: Settings > Connected apps and Settings > Notifications link to the settings
+// page); the route stays so old links and bookmarks keep working.
 export default SettingsPage
