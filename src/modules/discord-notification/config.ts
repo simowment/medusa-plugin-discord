@@ -27,7 +27,10 @@ export type SetupHelp = { text: string | null; url: string | null }
 
 export type ResolvedDiscordNotificationOptions = {
   defaultBotName: string
+  /** The bot name comes from the option or env, not from DEFAULT_BOT_NAME. */
+  defaultBotNameConfigured: boolean
   locale: string
+  localeConfigured: boolean
   setupHelp: SetupHelp | null
 }
 
@@ -54,7 +57,11 @@ export function resolveDiscordNotificationOptions(
 ): ResolvedDiscordNotificationOptions {
   return {
     defaultBotName: safeBotName(options.defaultBotName || env.DISCORD_DEFAULT_BOT_NAME),
+    defaultBotNameConfigured: Boolean(
+      (options.defaultBotName || env.DISCORD_DEFAULT_BOT_NAME || '').trim(),
+    ),
     locale: options.locale || DEFAULT_LOCALE,
+    localeConfigured: Boolean(options.locale),
     setupHelp: resolveSetupHelp(options.setupHelp),
   }
 }

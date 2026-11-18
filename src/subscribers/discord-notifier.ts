@@ -230,7 +230,9 @@ export default async function discordNotificationHandler({
 
   try {
     const globalSettings = await discordSvc.getSettings()
-    const locale: string = discordSvc.getLocale()
+    // Saved on the settings page; the plugin option (or its default) applies otherwise.
+    const locale: string = globalSettings.locale || discordSvc.getLocale()
+    const defaultBotName: string = globalSettings.default_bot_name || discordSvc.getDefaultBotName()
 
     // Handle Customer Events separately (not order-centric, always new messages)
     if (name.startsWith('customer.')) {
@@ -267,7 +269,7 @@ export default async function discordNotificationHandler({
           : `Customer account **${customer.id}** was updated.`
 
       const defaultPayload = {
-        username: safeBotName(discordSvc.getDefaultBotName()),
+        username: safeBotName(defaultBotName),
         embeds: [
           {
             title: title,
@@ -295,13 +297,13 @@ export default async function discordNotificationHandler({
               try {
                 const parsedJson = JSON.parse(content)
                 finalPayload = {
-                  username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
+                  username: safeBotName(mapping.bot_name || defaultBotName),
                   ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
                   ...parsedJson,
                 }
               } catch (e) {
                 finalPayload = {
-                  username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
+                  username: safeBotName(mapping.bot_name || defaultBotName),
                   ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
                   content: content,
                 }
@@ -309,7 +311,7 @@ export default async function discordNotificationHandler({
             } else {
               finalPayload = {
                 ...defaultPayload,
-                username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
+                username: safeBotName(mapping.bot_name || defaultBotName),
               }
             }
 
@@ -525,7 +527,7 @@ export default async function discordNotificationHandler({
     }
 
     const buildPayload = (template: string | null, botName?: string) => {
-      const resolvedBotName = botName || discordSvc.getDefaultBotName()
+      const resolvedBotName = botName || defaultBotName
       if (template) {
         const content = compileTemplate(template, dataForTemplate, locale)
         // Try parsing the template as JSON to allow users to build custom rich embeds

@@ -38,20 +38,44 @@ class DiscordNotificationModuleService extends MedusaService({
     return this.options_.locale
   }
 
-  async getSettings(): Promise<{ avatar_url?: string; footer_text?: string }> {
+  /** Values saved on the settings page; an absent key means "not saved here". */
+  async getSettings(): Promise<{
+    avatar_url?: string
+    footer_text?: string
+    default_bot_name?: string
+    locale?: string
+  }> {
     const settings = await this.listDiscordPluginSettings({})
     if (settings && settings.length > 0) {
+      const row = settings[0] as typeof settings[0] & {
+        default_bot_name?: string | null
+        locale?: string | null
+      }
       return {
-        avatar_url: settings[0].avatar_url ?? undefined,
-        footer_text: settings[0].footer_text ?? undefined,
+        avatar_url: row.avatar_url ?? undefined,
+        footer_text: row.footer_text ?? undefined,
+        default_bot_name: row.default_bot_name ?? undefined,
+        locale: row.locale ?? undefined,
       }
     }
     return {}
   }
 
+  /** True when the plugin option (or DISCORD_DEFAULT_BOT_NAME) sets the bot name, not the default. */
+  isDefaultBotNameConfigured(): boolean {
+    return this.options_.defaultBotNameConfigured
+  }
+
+  /** True when the `locale` plugin option is set. */
+  isLocaleConfigured(): boolean {
+    return this.options_.localeConfigured
+  }
+
   async upsertSettings(data: {
     avatar_url?: string | null
     footer_text?: string | null
+    default_bot_name?: string | null
+    locale?: string | null
   }): Promise<void> {
     const settings = await this.listDiscordPluginSettings({})
     if (settings && settings.length > 0) {
@@ -78,7 +102,7 @@ class DiscordNotificationModuleService extends MedusaService({
     const globalSettings = await this.getSettings()
 
     const payload: Record<string, unknown> = {
-      username: safeBotName(this.getDefaultBotName()),
+      username: safeBotName(globalSettings.default_bot_name || this.getDefaultBotName()),
       embeds: [
         {
           title: alert.title,

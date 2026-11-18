@@ -49,10 +49,32 @@ export const UpdateDiscordMappingSchema = z
 
 export type UpdateDiscordMappingBody = z.infer<typeof UpdateDiscordMappingSchema>
 
+function isLocale(value: string): boolean {
+  try {
+    return Intl.NumberFormat.supportedLocalesOf([value]).length > 0
+  } catch {
+    return false
+  }
+}
+
 export const UpdateDiscordSettingsSchema = z
   .object({
-    avatar_url: OptionalTextSchema,
-    footer_text: OptionalTextSchema,
+    avatar_url: z
+      .string()
+      .trim()
+      .max(2000)
+      .refine((value) => value === '' || /^https?:\/\//.test(value), "avatar_url must start with http:// or https://")
+      .nullable()
+      .optional(),
+    footer_text: z.string().trim().max(2048).nullable().optional(),
+    default_bot_name: z.string().trim().max(80).nullable().optional(),
+    locale: z
+      .string()
+      .trim()
+      .max(35)
+      .refine((value) => value === '' || isLocale(value), 'locale must be a language tag such as en-US or fr-FR')
+      .nullable()
+      .optional(),
   })
   .strict()
 

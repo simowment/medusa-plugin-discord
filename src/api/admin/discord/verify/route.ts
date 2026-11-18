@@ -166,29 +166,31 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     }
 
     const globalSettings = await discordSvc.getSettings()
+    const defaultBotName: string = globalSettings.default_bot_name || discordSvc.getDefaultBotName()
+    const locale: string = globalSettings.locale || discordSvc.getLocale()
 
     let payload: any = null
 
     if (mapping.message_template) {
       const mockData = mapping.event_name === 'customer.created' ? mockCustomer : mockOrder
-      const content = compileTemplate(mapping.message_template, mockData, discordSvc.getLocale())
+      const content = compileTemplate(mapping.message_template, mockData, locale)
       try {
         const parsedJson = JSON.parse(content)
         payload = {
-          username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
+          username: safeBotName(mapping.bot_name || defaultBotName),
           ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
           ...parsedJson,
         }
       } catch (e) {
         payload = {
-          username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
+          username: safeBotName(mapping.bot_name || defaultBotName),
           ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
           content: content,
         }
       }
     } else {
       payload = {
-        username: safeBotName(mapping.bot_name || discordSvc.getDefaultBotName()),
+        username: safeBotName(mapping.bot_name || defaultBotName),
         embeds: [
           {
             title: '🔔 Connection Test',

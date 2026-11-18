@@ -4,18 +4,26 @@ import { DISCORD_NOTIFICATION_MODULE } from '../../modules/discord-notification'
 export type UpsertDiscordSettingsStepInput = {
   avatar_url?: string | null
   footer_text?: string | null
+  default_bot_name?: string | null
+  locale?: string | null
 }
 
 type DiscordSettings = {
   avatar_url?: string
   footer_text?: string
+  default_bot_name?: string
+  locale?: string
 }
 
 type DiscordPluginSettingRecord = {
   id: string
   avatar_url?: string | null
   footer_text?: string | null
+  default_bot_name?: string | null
+  locale?: string | null
 }
+
+const FIELDS = ['avatar_url', 'footer_text', 'default_bot_name', 'locale'] as const
 
 type SettingsCompensationInput = {
   previous: DiscordPluginSettingRecord | null
@@ -26,10 +34,9 @@ type DiscordSettingsService = {
   getSettings: () => Promise<DiscordSettings>
   listDiscordPluginSettings: (filters: Record<string, unknown>) => Promise<DiscordPluginSettingRecord[]>
   updateDiscordPluginSettings: (data: DiscordPluginSettingRecord) => Promise<unknown>
-  createDiscordPluginSettings: (data: {
-    avatar_url: string | null
-    footer_text: string | null
-  }) => Promise<DiscordPluginSettingRecord>
+  createDiscordPluginSettings: (
+    data: Omit<DiscordPluginSettingRecord, 'id'>,
+  ) => Promise<DiscordPluginSettingRecord>
   deleteDiscordPluginSettings: (ids: string | string[]) => Promise<void>
 }
 
@@ -38,6 +45,8 @@ function toRecordSnapshot(record: DiscordPluginSettingRecord): DiscordPluginSett
     id: record.id,
     avatar_url: record.avatar_url ?? null,
     footer_text: record.footer_text ?? null,
+    default_bot_name: record.default_bot_name ?? null,
+    locale: record.locale ?? null,
   }
 }
 
@@ -47,9 +56,10 @@ export const upsertDiscordSettingsStep = createStep(
     const discordSvc = container.resolve(DISCORD_NOTIFICATION_MODULE) as DiscordSettingsService
     const existingSettings = await discordSvc.listDiscordPluginSettings({})
     const previous = existingSettings.length > 0 ? toRecordSnapshot(existingSettings[0]) : null
-    const nextSettings = {
-      avatar_url: input.avatar_url || null,
-      footer_text: input.footer_text || null,
+    // A field absent from the input keeps its saved value; null or "" clears it.
+    const nextSettings: Omit<DiscordPluginSettingRecord, 'id'> = {}
+    for (const field of FIELDS) {
+      if (input[field] !== undefined) nextSettings[field] = input[field] || null
     }
     let createdId: string | null = null
 

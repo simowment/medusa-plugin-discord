@@ -11,13 +11,15 @@ import {
   Select,
   FocusModal,
   toast,
-  Tabs,
   usePrompt,
 } from '@medusajs/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import { sdk } from '../../../lib/sdk'
-import { InstallerCode, InstallerHint } from '../../../components/ui/installer-hint'
+import { InstallerCode } from '../../../components/ui/installer-hint'
+import { SaveBar, SavedAutomatically } from '../../../components/ui/save-bar'
+import { SettingRow, SettingsPage, SettingsSection } from '../../../components/ui/settings-page'
+import { useUnsavedGuard } from '../../../components/ui/use-unsaved-guard'
 import { getSuggestedDataPathsForEvent } from '../../../../shared/discord-fields'
 
 const SETTINGS_QUERY_KEY = ['discord-settings']
@@ -36,6 +38,8 @@ function errorMessage(error: unknown, fallback: string): string {
 type DiscordSettings = {
   avatar_url?: string | null
   footer_text?: string | null
+  default_bot_name?: string | null
+  locale?: string | null
 }
 
 type DiscordMapping = {
@@ -50,8 +54,19 @@ type DiscordMapping = {
 
 type DiscordSettingsResponse = {
   settings?: DiscordSettings
+  /** Bot name in use when a mapping has none (saved here, else the option, else the default). */
   default_bot_name?: string
   setup_help?: { text: string | null; url: string | null } | null
+  view?: Record<
+    'default_bot_name' | 'locale' | 'avatar_url' | 'footer_text',
+    {
+      value: string | null
+      source: 'admin' | 'host' | 'default'
+      fallback: string | null
+      fallback_source: 'host' | 'default'
+    }
+  >
+  shop_slug?: string | null
 }
 
 type OperatorAlertsStatus = { configured: boolean; channel?: string | null }
@@ -327,7 +342,9 @@ function MappingModal({
         <FocusModal.Header>
           <div className="flex flex-col">
             <FocusModal.Title asChild>
-              <Heading level="h2">{editingId ? 'Edit channel mapping' : 'New channel mapping'}</Heading>
+              <Heading level="h2">
+                {editingId ? 'Edit channel mapping' : 'New channel mapping'}
+              </Heading>
             </FocusModal.Title>
             <FocusModal.Description className="sr-only">
               Choose a store event and the Discord channel webhook that receives a message for it.
@@ -377,7 +394,9 @@ function MappingModal({
                 <Input
                   id="modal-bot-name"
                   placeholder={
-                    defaultBotName ? `Leave empty to use "${defaultBotName}"` : 'Leave empty to use the default name'
+                    defaultBotName
+                      ? `Leave empty to use "${defaultBotName}"`
+                      : 'Leave empty to use the default name'
                   }
                   value={form.bot_name}
                   onChange={(e) => setForm({ ...form, bot_name: e.target.value })}
@@ -439,7 +458,8 @@ function MappingModal({
                 />
                 <Label htmlFor="modal-active-toggle">Enabled</Label>
                 <Text size="xsmall" className="text-ui-fg-subtle">
-                  New mappings start disabled. When enabled, every matching store event posts to this channel.
+                  New mappings start disabled. When enabled, every matching store event posts to
+                  this channel.
                 </Text>
               </div>
             </div>
@@ -474,108 +494,159 @@ function MappingModal({
   )
 }
 
-function SettingsTab() {
-  const queryClient = useQueryClient()
-  const [form, setForm] = useState({ avatar_url: '', footer_text: '' })
-  const hasHydratedSettings = useRef(false)
+type SourceKind = 'admin' | 'host' | 'default'
 
-  const settingsQuery = useQuery({
-    queryKey: SETTINGS_QUERY_KEY,
-    queryFn: () => sdk.client.fetch<DiscordSettingsResponse>('/admin/discord/settings'),
-  })
+type AppearanceForm = {
+  default_bot_name: string
+  locale: string
+  avatar_url: string
+  footer_text: string
+}
 
-  useEffect(() => {
-    if (!hasHydratedSettings.current && settingsQuery.isSuccess) {
-      const settings = settingsQuery.data?.settings
-      setForm({
-        avatar_url: settings?.avatar_url || '',
-        footer_text: settings?.footer_text || '',
-      })
-      hasHydratedSettings.current = true
-    }
-  }, [settingsQuery.data?.settings, settingsQuery.isSuccess])
+const APPEARANCE_FIELDS: Array<keyof AppearanceForm> = [
+  'default_bot_name',
+  'locale',
+  'avatar_url',
+  'footer_text',
+]
 
-  useEffect(() => {
-    if (settingsQuery.isError) {
-      toast.error('Failed to load settings')
-    }
-  }, [settingsQuery.isError])
-
-  const saveSettings = useMutation({
-    mutationFn: () =>
-      sdk.client.fetch('/admin/discord/settings', {
-        method: 'POST',
-        body: form,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY })
-      toast.success('Settings saved successfully')
-    },
-    onError: (error) => {
-      toast.error('Settings not saved', { description: errorMessage(error, 'Unknown error') })
-    },
-  })
-
-  const handleSave = () => {
-    saveSettings.mutate()
+function savedForm(data?: DiscordSettingsResponse): AppearanceForm {
+  const settings = data?.settings
+  return {
+    default_bot_name: settings?.default_bot_name || '',
+    locale: settings?.locale || '',
+    avatar_url: settings?.avatar_url || '',
+    footer_text: settings?.footer_text || '',
   }
+}
 
-  if (settingsQuery.isLoading)
-    return (
-      <div className="p-6">
-        <Text>Loading settings...</Text>
-      </div>
-    )
+function pricePreview(locale: string): string | null {
+  try {
+    return new Intl.NumberFormat(locale || undefined, {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(1234.5)
+  } catch {
+    return null
+  }
+}
+
+function hostEnvCommand(slug: string | null | undefined): string {
+  const shop = slug || '<slug>'
+  return `$EDITOR shops/${shop}/.env && node cli/bin/igm.mjs shop up --shop ${shop}`
+}
+
+/** "Message appearance": bot name, price format, avatar and footer. One form, one SaveBar. */
+function AppearanceSection({
+  data,
+  form,
+  setForm,
+}: {
+  data?: DiscordSettingsResponse
+  form: AppearanceForm
+  setForm: (next: AppearanceForm) => void
+}) {
+  const v = data?.view
+  const botFallback = v?.default_bot_name.fallback ?? data?.default_bot_name ?? 'Store Bot'
+  const localeFallback = v?.locale.fallback ?? 'en-US'
+  const preview = pricePreview(form.locale.trim() || localeFallback)
+  const command = hostEnvCommand(data?.shop_slug)
+  const sourceOf = (field: keyof AppearanceForm): SourceKind =>
+    form[field].trim() ? 'admin' : (v?.[field]?.fallback_source ?? 'default')
 
   return (
-    <Container className="p-6">
-      <Heading level="h2">Message appearance</Heading>
-      <Text size="small" className="text-ui-fg-subtle mb-4">
-        How messages from every mapping look in Discord.
-      </Text>
-      <div className="flex max-w-lg flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <Label>Default bot name</Label>
-          <Text size="small">{settingsQuery.data?.default_bot_name || '—'}</Text>
-          <Text size="small" className="text-ui-fg-subtle">
-            Used when a mapping has no bot name. Your installer sets it; it cannot be changed here.
-          </Text>
-          <InstallerHint>
-            <Text size="small" className="text-ui-fg-subtle">
-              The default bot name comes from the plugin option:
+    <SettingsSection
+      id="appearance"
+      title="Message appearance"
+      description="How messages from every mapping look in Discord. Changes apply to the next message."
+    >
+      <SettingRow
+        label="Default bot name"
+        htmlFor="discord-bot-name"
+        source={sourceOf('default_bot_name')}
+        help={`The sender name shown in Discord when a mapping has no bot name of its own. Leave empty to use "${botFallback}". Discord refuses names that contain "discord" or "clyde"; those words are removed.`}
+        technical={
+          <div className="flex flex-col gap-2">
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Saved here, this wins over the plugin option{' '}
+              <code className="font-mono">defaultBotName</code> and the variable{' '}
+              <code className="font-mono">DISCORD_DEFAULT_BOT_NAME</code>. To change that default on
+              the host:
             </Text>
-            <InstallerCode>defaultBotName</InstallerCode>
-          </InstallerHint>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Default Avatar URL</Label>
+            <InstallerCode>{command}</InstallerCode>
+          </div>
+        }
+        control={
           <Input
+            id="discord-bot-name"
+            size="small"
+            maxLength={80}
+            placeholder={botFallback}
+            value={form.default_bot_name}
+            onChange={(e) => setForm({ ...form, default_bot_name: e.target.value })}
+          />
+        }
+      />
+      <SettingRow
+        label="Price format"
+        htmlFor="discord-locale"
+        source={sourceOf('locale')}
+        help={`Language and region used to write prices in messages, such as en-US or fr-FR. Leave empty to use ${localeFallback}.`}
+        technical={
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            Saved here, this wins over the plugin option <code className="font-mono">locale</code>{' '}
+            (a BCP 47 language tag passed to <code className="font-mono">Intl.NumberFormat</code>).
+          </Text>
+        }
+        control={
+          <div className="flex flex-col gap-1">
+            <Input
+              id="discord-locale"
+              size="small"
+              maxLength={35}
+              placeholder={localeFallback}
+              value={form.locale}
+              onChange={(e) => setForm({ ...form, locale: e.target.value })}
+            />
+            <Text size="xsmall" className={preview ? 'text-ui-fg-subtle' : 'text-ui-fg-error'}>
+              {preview
+                ? `Example: ${preview}`
+                : 'Not a language tag this server knows. Try en-US or fr-FR.'}
+            </Text>
+          </div>
+        }
+      />
+      <SettingRow
+        label="Avatar image URL"
+        htmlFor="discord-avatar"
+        source={sourceOf('avatar_url')}
+        help="Image used as the bot's picture for every mapping. Leave empty to use Discord's default picture."
+        control={
+          <Input
+            id="discord-avatar"
+            size="small"
             placeholder="https://example.com/logo.png"
             value={form.avatar_url}
             onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
           />
-          <Text size="small" className="text-ui-fg-subtle">
-            Image URL used as the bot avatar for every mapping. Leave empty to use Discord's default.
-          </Text>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Default Footer Text</Label>
+        }
+      />
+      <SettingRow
+        label="Footer text"
+        htmlFor="discord-footer"
+        source={sourceOf('footer_text')}
+        help='Text at the bottom of the default order and customer messages. Leave empty to use "Medusa Storefront" (alerts: "Medusa Store").'
+        control={
           <Input
+            id="discord-footer"
+            size="small"
             placeholder="Medusa Storefront"
             value={form.footer_text}
             onChange={(e) => setForm({ ...form, footer_text: e.target.value })}
           />
-          <Text size="small" className="text-ui-fg-subtle">
-            The footer text displayed at the bottom of the rich embeds for orders and customers.
-          </Text>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button variant="primary" onClick={handleSave} isLoading={saveSettings.isPending}>
-            Save Settings
-          </Button>
-        </div>
-      </div>
-    </Container>
+        }
+      />
+    </SettingsSection>
   )
 }
 
@@ -593,8 +664,7 @@ function DiscordNotificationsPage() {
   })
 
   // Operator alerts (failed supplier orders, store problems) use a separate
-  // webhook that the store host sets up (setupHelp says where); this page only
-  // shows whether it is set up.
+  // webhook set on Settings > Notifications; this page only shows its state.
   // An older backend without the status route answers 404: show "unknown".
   const operatorAlertsQuery = useQuery({
     queryKey: OPERATOR_ALERTS_QUERY_KEY,
@@ -609,20 +679,49 @@ function DiscordNotificationsPage() {
     retry: false,
   })
   const operatorAlerts = operatorAlertsQuery.data
-  const setupHelpQuery = useQuery({
+
+  const settingsQuery = useQuery({
     queryKey: SETTINGS_QUERY_KEY,
     queryFn: () => sdk.client.fetch<DiscordSettingsResponse>('/admin/discord/settings'),
   })
-  const setupHelp = setupHelpQuery.data?.setup_help
+  const setupHelp = settingsQuery.data?.setup_help
+
+  // Appearance form: hydrated once from the saved values, then edited locally.
+  const [form, setForm] = useState<AppearanceForm>(savedForm())
+  const hydrated = useRef(false)
+  useEffect(() => {
+    if (!hydrated.current && settingsQuery.isSuccess) {
+      setForm(savedForm(settingsQuery.data))
+      hydrated.current = true
+    }
+  }, [settingsQuery.isSuccess, settingsQuery.data])
+  const saved = savedForm(settingsQuery.data)
+  const dirty =
+    hydrated.current &&
+    APPEARANCE_FIELDS.some((field) => form[field].trim() !== saved[field].trim())
+  useUnsavedGuard(dirty)
+  const localeInvalid = form.locale.trim() !== '' && pricePreview(form.locale.trim()) === null
+
+  const saveSettings = useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<DiscordSettingsResponse>('/admin/discord/settings', {
+        method: 'POST',
+        body: Object.fromEntries(
+          APPEARANCE_FIELDS.map((field) => [field, form[field].trim() || null]),
+        ),
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(SETTINGS_QUERY_KEY, data)
+      setForm(savedForm(data))
+      toast.success('Message appearance saved')
+    },
+    onError: (error) => {
+      toast.error('Settings not saved', { description: errorMessage(error, 'Unknown error') })
+    },
+  })
 
   const mappings = mappingsQuery.data?.mappings || []
   const loading = mappingsQuery.isLoading
-
-  useEffect(() => {
-    if (mappingsQuery.isError) {
-      toast.error('Failed to load webhook mappings')
-    }
-  }, [mappingsQuery.isError])
 
   const deleteMappingMutation = useMutation({
     mutationFn: (id: string) =>
@@ -650,7 +749,7 @@ function DiscordNotificationsPage() {
       }),
     onSuccess: (data, variables) => {
       if (data.success) {
-        toast.success(variables.checked ? 'Webhook enabled' : 'Webhook disabled')
+        toast.success(variables.checked ? 'Mapping turned on' : 'Mapping turned off')
         queryClient.invalidateQueries({ queryKey: MAPPINGS_QUERY_KEY })
       } else {
         toast.error(data.message || 'Failed to toggle status')
@@ -705,10 +804,6 @@ function DiscordNotificationsPage() {
     deleteMappingMutation.mutate(m.id)
   }
 
-  const toggleActive = (m: DiscordMapping, checked: boolean) => {
-    toggleActiveMutation.mutate({ id: m.id, checked })
-  }
-
   const testWebhook = async (m: DiscordMapping) => {
     const confirmed = await prompt({
       title: 'Send a sample message?',
@@ -734,65 +829,14 @@ function DiscordNotificationsPage() {
     }
   }
 
+  const activeCount = mappings.filter((m) => m.is_active).length
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <Heading level="h1">Discord notifications</Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-0.5">
-            Optional: post a message to a Discord channel when a store event happens (a new order, a shipment, a
-            new customer). Each mapping links one event to one channel webhook.
-          </Text>
-        </div>
-        <Button variant="secondary" onClick={openAdd}>
-          Add mapping
-        </Button>
-      </div>
-
-      <Container className="flex flex-col gap-1 p-4">
-        <div className="flex items-center gap-2">
-          <Text size="small" weight="plus">Operator alerts</Text>
-          {operatorAlertsQuery.isLoading ? null : operatorAlerts ? (
-            <Badge size="2xsmall" color={operatorAlerts.configured ? 'green' : 'orange'}>
-              {operatorAlerts.configured ? 'Set up' : 'Not set up'}
-            </Badge>
-          ) : (
-            <Badge size="2xsmall" color="grey">Unknown</Badge>
-          )}
-        </div>
-        <Text size="small" className="text-ui-fg-subtle">
-          Alerts for problems that need you (failed supplier orders, store problems) do not use the mappings below.
-          They have their own settings page.
-          {operatorAlerts?.configured && operatorAlerts.channel ? ` Channel: ${operatorAlerts.channel}.` : ''}
-          {!operatorAlertsQuery.isLoading && !operatorAlerts ? ' This backend does not report their status.' : ''}
-        </Text>
-        {setupHelp && (setupHelp.text || setupHelp.url) ? (
-          <Text size="small" className="text-ui-fg-subtle">
-            {setupHelp.text}
-            {setupHelp.text && setupHelp.url ? ' ' : null}
-            {setupHelp.url ? (
-              setupHelp.url.startsWith('/') && !setupHelp.url.startsWith('//') ? (
-                // A path inside this admin (for example a host settings page): same tab.
-                <a href={setupHelp.url} className="text-ui-fg-interactive hover:underline">
-                  Open setup
-                </a>
-              ) : (
-                <a
-                  href={setupHelp.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-ui-fg-interactive hover:underline"
-                >
-                  More about setup
-                </a>
-              )
-            ) : null}
-          </Text>
-        ) : null}
-      </Container>
-
-      <Text size="small" className="text-ui-fg-subtle">{PRIVACY_NOTE}</Text>
-
+    <SettingsPage
+      title="Discord notifications"
+      subtitle="Optional: post a message to a Discord channel when a store event happens (a new order, a shipment, a new customer). Each mapping links one event to one channel webhook (the channel's posting address in Discord)."
+      back={{ to: '/settings/apps', label: 'Apps' }}
+    >
       <MappingModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -800,96 +844,188 @@ function DiscordNotificationsPage() {
         editingMapping={editingMapping}
       />
 
-      <Tabs defaultValue="webhooks">
-        <Tabs.List>
-          <Tabs.Trigger value="webhooks">Which events go where</Tabs.Trigger>
-          <Tabs.Trigger value="settings">Appearance</Tabs.Trigger>
-        </Tabs.List>
-
-        <Tabs.Content value="webhooks" className="mt-4">
-          <Container className="border-ui-border-base overflow-hidden rounded-lg border p-0">
-            {loading ? (
-              <div className="p-6">
-                <Text>Loading mappings...</Text>
-              </div>
-            ) : mappings.length === 0 ? (
-              <div className="p-6 text-center">
-                <Text className="text-ui-fg-muted">
-                  No mappings yet. Nothing is posted to Discord. Click "Add mapping" to send an event to a channel.
-                </Text>
-              </div>
-            ) : (
-              <Table>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.HeaderCell>Event Name</Table.HeaderCell>
-                    <Table.HeaderCell>Channel Label</Table.HeaderCell>
-                    <Table.HeaderCell>Webhook URL</Table.HeaderCell>
-                    <Table.HeaderCell>Status</Table.HeaderCell>
-                    <Table.HeaderCell className="text-right">Actions</Table.HeaderCell>
-                  </Table.Row>
-                </Table.Header>
-                <Table.Body>
-                  {mappings.map((m) => (
-                    <Table.Row key={m.id}>
-                      <Table.Cell>
+      <SettingsSection id="channels" title="Which events go where" description={PRIVACY_NOTE}>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+          <Text size="small" className="text-ui-fg-subtle">
+            {loading
+              ? 'Checking…'
+              : mappingsQuery.isError
+                ? 'Could not load the mappings.'
+                : mappings.length === 0
+                  ? 'No mappings yet: nothing is posted to Discord.'
+                  : `${activeCount} of ${mappings.length} ${mappings.length === 1 ? 'mapping is' : 'mappings are'} on. Each switch saves at once.`}
+          </Text>
+          <div className="flex items-center gap-3">
+            {mappings.length > 0 ? <SavedAutomatically /> : null}
+            <Button variant="secondary" size="small" onClick={openAdd}>
+              Add mapping
+            </Button>
+          </div>
+        </div>
+        {mappingsQuery.isError ? (
+          <div className="px-6 py-4">
+            <Text size="small" className="text-ui-fg-error">
+              Could not load the mappings:{' '}
+              {errorMessage(mappingsQuery.error, 'the server returned an error')}.{' '}
+              <button
+                type="button"
+                className="text-ui-fg-interactive hover:underline"
+                onClick={() => void mappingsQuery.refetch()}
+              >
+                Try again
+              </button>
+            </Text>
+          </div>
+        ) : loading || mappings.length === 0 ? null : (
+          <div className="overflow-x-auto">
+            <Table>
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>Event</Table.HeaderCell>
+                  <Table.HeaderCell>Channel label</Table.HeaderCell>
+                  <Table.HeaderCell>Webhook</Table.HeaderCell>
+                  <Table.HeaderCell>On</Table.HeaderCell>
+                  <Table.HeaderCell className="text-right">Actions</Table.HeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {mappings.map((m) => (
+                  <Table.Row key={m.id}>
+                    <Table.Cell>
+                      <button type="button" className="text-left" onClick={() => openEdit(m)}>
                         <Badge color="blue">{m.event_name}</Badge>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Text size="small" className="font-mono">
-                          {m.channel_name || '—'}
+                      </button>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text size="small" className="font-mono">
+                        {m.channel_name || '—'}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text size="small" className="text-ui-fg-subtle font-mono">
+                        {maskWebhookUrl(m.webhook_url)}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          aria-label={`Post ${m.event_name} to Discord`}
+                          checked={m.is_active}
+                          onCheckedChange={(checked) =>
+                            toggleActiveMutation.mutate({ id: m.id, checked })
+                          }
+                        />
+                        <Text size="small" className="text-ui-fg-subtle">
+                          {m.is_active ? 'On' : 'Off'}
                         </Text>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Text size="small" className="text-ui-fg-subtle font-mono">
-                          {maskWebhookUrl(m.webhook_url)}
-                        </Text>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={m.is_active}
-                            onCheckedChange={(checked) => toggleActive(m, checked)}
-                          />
-                          <Badge color={m.is_active ? 'green' : 'grey'}>
-                            {m.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </div>
-                      </Table.Cell>
-                      <Table.Cell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="secondary"
-                            size="small"
-                            onClick={() => void testWebhook(m)}
-                            isLoading={testingId === m.id}
-                          >
-                            Send test
-                          </Button>
-                          <Button variant="secondary" size="small" onClick={() => openEdit(m)}>
-                            Edit
-                          </Button>
-                          <Button variant="danger" size="small" onClick={() => void deleteMapping(m)}>
-                            Delete
-                          </Button>
-                        </div>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table>
-            )}
-          </Container>
-        </Tabs.Content>
-        <Tabs.Content value="settings" className="mt-4">
-          <SettingsTab />
-        </Tabs.Content>
-      </Tabs>
-    </div>
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          onClick={() => void testWebhook(m)}
+                          isLoading={testingId === m.id}
+                        >
+                          Send test
+                        </Button>
+                        <Button variant="secondary" size="small" onClick={() => openEdit(m)}>
+                          Edit
+                        </Button>
+                        <Button variant="danger" size="small" onClick={() => void deleteMapping(m)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table>
+          </div>
+        )}
+      </SettingsSection>
+
+      {settingsQuery.isError ? (
+        <Container className="px-6 py-4">
+          <Text size="small" className="text-ui-fg-error">
+            Could not load the message settings:{' '}
+            {errorMessage(settingsQuery.error, 'the server returned an error')}.{' '}
+            <button
+              type="button"
+              className="text-ui-fg-interactive hover:underline"
+              onClick={() => void settingsQuery.refetch()}
+            >
+              Try again
+            </button>
+          </Text>
+        </Container>
+      ) : settingsQuery.isLoading ? (
+        <Container className="px-6 py-4">
+          <Text size="small" className="text-ui-fg-subtle">
+            Checking…
+          </Text>
+        </Container>
+      ) : (
+        <AppearanceSection data={settingsQuery.data} form={form} setForm={setForm} />
+      )}
+
+      <SettingsSection
+        id="alerts"
+        title="Alerts for you"
+        description="Alerts for problems that need you (failed supplier orders, store problems, approvals) do not use the mappings above. They have their own settings."
+      >
+        <SettingRow
+          label="Operator alerts"
+          help={
+            operatorAlerts?.configured && operatorAlerts.channel
+              ? `Sent to: ${operatorAlerts.channel}.`
+              : !operatorAlertsQuery.isLoading && !operatorAlerts
+                ? 'This backend does not report their state.'
+                : undefined
+          }
+          control={
+            <div className="flex flex-wrap items-center gap-3">
+              {operatorAlertsQuery.isLoading ? (
+                <Text size="small" className="text-ui-fg-subtle">
+                  Checking…
+                </Text>
+              ) : operatorAlerts ? (
+                <Badge size="2xsmall" color={operatorAlerts.configured ? 'green' : 'grey'}>
+                  {operatorAlerts.configured ? 'On' : 'Off'}
+                </Badge>
+              ) : (
+                <Badge size="2xsmall" color="grey">
+                  Not checked yet
+                </Badge>
+              )}
+              <a
+                href={
+                  setupHelp?.url && setupHelp.url.startsWith('/') && !setupHelp.url.startsWith('//')
+                    ? setupHelp.url
+                    : '/app/settings/notifications'
+                }
+                className="txt-compact-small-plus text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+              >
+                Change on Settings &gt; Notifications
+              </a>
+            </div>
+          }
+        />
+      </SettingsSection>
+
+      <SaveBar
+        dirty={dirty}
+        saving={saveSettings.isPending}
+        disabled={localeInvalid}
+        onSave={() => saveSettings.mutate()}
+        onDiscard={() => setForm(savedForm(settingsQuery.data))}
+      />
+    </SettingsPage>
   )
 }
 
-// No sidebar label: Settings > Connected apps and Settings > Notifications link here, so the
-// page has a single entry point. The route itself stays, so old links keep working.
+// No sidebar label: Settings > Apps and Settings > Notifications link here, so the page has a
+// single entry point. The route itself stays, so old links keep working.
 
 export default DiscordNotificationsPage
